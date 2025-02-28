@@ -1,0 +1,2 @@
+cargo:rustc-env=TYPENUM_BUILD_CONSTS=/tmp/consolidate_topdeletions/speedy/target/release/build/typenum-58e367989c27ede1/out/consts.rs
+cargo:rustc-env=TYPENUM_BUILD_OP=/tmp/consolidate_topdeletions/speedy/target/release/build/typenum-58e367989c27ede1/out/op.rs

@@ -1,0 +1,16 @@
+building on a Mac:
+
+   first, build the image:
+    docker build --platform=linux/amd64 -t helminth . && docker run -it --platform=linux/amd64 -v /Users/kieran/Documents/helminth:/tmp/helminth --entrypoint /bin/sh helminth:latest
+
+   now, inside the image:
+       dnf install gcc g++ git
+       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+       source "$HOME/.cargo/env"
+       export CARGO_NET_GIT_FETCH_WITH_CLI=true
+       pip3 install maturin
+       cd /tmp/helminth/speedy
+       maturin build --release
+
+   now, from the host OS, copy the wheel out of the running container:
+       docker cp <IMAGEID>:/tmp/helminth/speedy/target/wheels/speedy-0.1.0-cp312-cp312-manylinux_2_34_x86_64.whl  speedy/artifacts/speedy-0.1.0-cp312-none-any.whl

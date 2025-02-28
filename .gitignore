@@ -1,0 +1,4 @@
+/data
+/DATA_outside_docker
+*.zip
+cred.py
