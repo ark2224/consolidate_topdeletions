@@ -184,6 +184,5 @@ def get_conf_data(
                 'total_wells': 1,
                 'date': date,
                 'barcode_count': 0,
-                'deletions': []#just saving top 5
             }
     return seq_id_2_conf_pass

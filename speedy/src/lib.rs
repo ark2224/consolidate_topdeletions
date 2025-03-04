@@ -207,7 +207,8 @@ fn rust_find_hairpins(sseq: String) -> Option<HashMap<usize, Vec<Vec<usize>>>> {
     // variables
     // let threshold_stem: usize = 8;
     // let threshold_stem: usize = 5;//2.25.25 settings trying to find smallest hairpins of stem len 2 - Drew
-    let threshold_stem: usize = 2;//2.25.25 settings trying to find smallest hairpins of stem len 2 - Drew
+    // let threshold_stem: usize = 2;//2.25.25 settings trying to find smallest hairpins of stem len 2 - Drew
+    let threshold_stem: usize = 4;//3.3.25 settings trying to find smallest hairpins of stem len 3 - Drew
 
     if seq.len() < threshold_stem * 2 {
         return None;
@@ -571,7 +572,8 @@ fn find_near_hairpins(sequence: &str) -> PyResult<Vec<HashMap<&str, i32>>> {
     let seed = 6;
     let gap_max = 2;
     // let min_length = 10;
-    let min_length = 5;//2.25.25 settings to find all hairpins
+    // let min_length = 5;//2.25.25 settings to find all hairpins
+    let min_length = 8;//3.3.25 settings to find all hairpins
     let window = 10;
     let tolerance = 2;
     let hp_log = near_hairpin_log(

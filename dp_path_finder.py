@@ -266,52 +266,6 @@ def find_graph(s1: str, s2: str):
         for j in range(i+1, len(nodes)):
             nodes[i].add(nodes[j])
     
-    # # Checking if graph is built correctly:
-    # for n in nodes:
-    #     print(n.sequence, n.d1, n.d2)
-    #     for _,e in enumerate(n.edges):
-    #         print('\t',e.sequence, e.d1, e.d2, n.edge_weights[_], e.energy)
-    # return
-
-    # find the path through: BFS? DFS?
-    # doesn't exactly matter because the destination could be anywhere
-    # queue = [[nodes[0], 0, '']]
-    # heap = [[0, nodes[0], '', [], []]]#[[path's score, current node, string path, gap_d1, gap_d2]]
-    
-    
-    # heap = [[0, nodes[0], '', list(), list()]]#[[path's score, current node, string path, gap_d1, gap_d2]]
-    # heapq.heapify(heap)
-    # # unvisited = set(nodes)
-    # # visiting = {nodes[0]}
-    # visited = set()
-
-    # maxPath = ''
-    # maxEnergy = 0
-    # maxd1 = []
-    # maxd2 = []
-    # while heap:
-    #     curr_score, n, path, d1gaps, d2gaps = heapq.heappop(heap)
-    #     if curr_score < maxEnergy:
-    #         maxEnergy = curr_score
-    #         maxPath = path
-    #         maxd1 = d1gaps
-    #         maxd2 = d2gaps
-    #     visited.add(n)
-
-    #     for i, no in enumerate(n.edges):
-    #         if no not in visited:
-    #             next_score = curr_score - n.edge_weights[i] - no.energy
-    #             next_path = path + '|' + no.sequence
-    #             curr_gap_d1 = no.d1 - n.d1 - len(n.sequence)
-    #             curr_gap_d2 = no.d2 - n.d2 - len(n.sequence)
-    #             newd1gaps = d1gaps.copy()
-    #             newd1gaps.append(curr_gap_d1)
-    #             newd2gaps = d2gaps.copy()
-    #             newd2gaps.append(curr_gap_d2)
-    #             # next_path = path.copy()
-    #             # next_path.extend(no)
-    #             heapq.heappush(heap, [next_score, no, next_path, newd1gaps, newd2gaps])
-
     heap = [[0, nodes[0], list(), '']]
     heapq.heapify(heap)
     visited = set()
@@ -332,7 +286,7 @@ def find_graph(s1: str, s2: str):
                 next_score = curr_score - n.edge_weights[i] - no.energy
                 next_path = path.copy()
                 next_path.append(no)
-                next_seq = seq + no.sequence
+                next_seq = seq + '|' + no.sequence
 
                 heapq.heappush(heap, [next_score, no, next_path, next_seq])
     return maxPath, -maxEnergy, pathSequence

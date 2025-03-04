@@ -1,1 +1,1 @@
-n, curr_score, path
+

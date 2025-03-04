@@ -400,34 +400,34 @@ def coverage(
                         # DELETION; only advances reference
                     elif op == pysam.CDEL:
                         rpos += siz
-            # if by right here, rpos < len(ref_seq): collect deletion
-            if rpos + 10 < len(ref_seq):
-                siz = len(ref_seq) - rpos
-                strt = rpos
-                end = rpos + siz
-                added = False
-                strt_end_key = str(strt) + '-' + str(end)
-                for i in range(len(deletions)):
-                    if (abs(strt - deletions[i][0]) <= 100) and (abs(end - deletions[i][1]) <= 100):
-                        if strt_end_key in deletions[i][2]:
-                            deletions[i][2][strt_end_key][0] += 1
-                        else:
-                            deletions[i][2][strt_end_key] = [1, aln.query_sequence[max(qpos - 50, 0):qpos] + '|' + aln.query_sequence[qpos:qpos+50]]
-                        deletions[i][0] = (strt + deletions[i][0]) // 2
-                        deletions[i][1] = (end + deletions[i][1]) // 2
-                        deletions[i][3] += 1
-                        added = True
-                        break
-                if not added:
-                    deletions.append([
-                        strt,#start of deletion GROUP
-                        end,#end of deletion GROUP
-                        {strt_end_key: [1,#exact deletion within the deletion group
-                                        aln.query_sequence[max(qpos - 50, 0):qpos] + '|',
-                                        ]
-                        },
-                        1#deletion GROUP read count
-                    ])
+            # # if by right here, rpos < len(ref_seq): collect deletion
+            # if rpos + 10 < len(ref_seq):
+            #     siz = len(ref_seq) - rpos
+            #     strt = rpos
+            #     end = rpos + siz
+            #     added = False
+            #     strt_end_key = str(strt) + '-' + str(end)
+            #     for i in range(len(deletions)):
+            #         if (abs(strt - deletions[i][0]) <= 100) and (abs(end - deletions[i][1]) <= 100):
+            #             if strt_end_key in deletions[i][2]:
+            #                 deletions[i][2][strt_end_key][0] += 1
+            #             else:
+            #                 deletions[i][2][strt_end_key] = [1, aln.query_sequence[max(qpos - 50, 0):qpos] + '|' + aln.query_sequence[qpos:qpos+50]]
+            #             deletions[i][0] = (strt + deletions[i][0]) // 2
+            #             deletions[i][1] = (end + deletions[i][1]) // 2
+            #             deletions[i][3] += 1
+            #             added = True
+            #             break
+            #     if not added:
+            #         deletions.append([
+            #             strt,#start of deletion GROUP
+            #             end,#end of deletion GROUP
+            #             {strt_end_key: [1,#exact deletion within the deletion group
+            #                             aln.query_sequence[max(qpos - 50, 0):qpos] + '|',
+            #                             ]
+            #             },
+            #             1#deletion GROUP read count
+            #         ])
         # if unmapped
         elif aln.flag & pysam.FUNMAP:
             unmapped += 1
@@ -442,56 +442,56 @@ def coverage(
     }
 
 
-# def plot_cigar(dd,
-#                fname,
-#                boundaries,
-#                flen,
-#                fpass):
-#     plt.clf()
-#     if not dd:
-#         plt.text(0.5, 0.5, f"no reads for\n{fname}", ha="center")
-#         plt.savefig(fname)
-#         return
+def plot_cigar(dd,
+               fname,
+               boundaries,
+               flen,
+               fpass):
+    plt.clf()
+    if not dd:
+        plt.text(0.5, 0.5, f"no reads for\n{fname}", ha="center")
+        plt.savefig(fname)
+        return
 
-#     # add minor tick-marks to X-axis
-#     fig, ax = plt.subplots()
-#     ax.xaxis.set_minor_locator(AutoMinorLocator())
-#     ax.tick_params(which="both", width=1)
-#     ax.tick_params(which="major", length=7)
-#     ax.tick_params(which="minor", length=4, color="grey")
+    # add minor tick-marks to X-axis
+    fig, ax = plt.subplots()
+    ax.xaxis.set_minor_locator(AutoMinorLocator())
+    ax.tick_params(which="both", width=1)
+    ax.tick_params(which="major", length=7)
+    ax.tick_params(which="minor", length=4, color="grey")
 
-#     ref = fname.split(".")[0]
-#     X = np.array(range(min(dd), max(dd) + 1))
-#     bottom = np.zeros(len(X))
-#     for nom, k in (
-#         ("match", "m"),
-#         ("del", "d"),
-#         ("mismatch", "x"),
-#         ("ins", "i"),
-#         ("clip", "c"),
-#     ):
-#         Y = np.array([dd[i][k] for i in X])
-#         # bottom is used to stack bar charts, and width=1 eliminates gaps between bars
-#         plt.bar(X, Y, bottom=bottom, label=f"{ref} - {nom}", width=1.0, alpha=0.8)
-#         bottom += Y
-#     for i in boundaries['b']:
-#         plt.axvline(i, color="black", linestyle="dashed", alpha=0.2)
-
-
-#     # plotting fragment bounds
-#     idx = 0.0
-#     for i, (s,e) in enumerate(flen):
-#         for j in range(s,e):
-#             plt.axvline(j, color='black', linestyle='dashed', alpha=0.2)
-#         if not fpass[i]:
-#             plt.axvspan(idx, e, color='red', alpha=0.2)
-#         idx = e
+    ref = fname.split(".")[0]
+    X = np.array(range(min(dd), max(dd) + 1))
+    bottom = np.zeros(len(X))
+    for nom, k in (
+        ("match", "m"),
+        ("del", "d"),
+        ("mismatch", "x"),
+        ("ins", "i"),
+        ("clip", "c"),
+    ):
+        Y = np.array([dd[i][k] for i in X])
+        # bottom is used to stack bar charts, and width=1 eliminates gaps between bars
+        plt.bar(X, Y, bottom=bottom, label=f"{ref} - {nom}", width=1.0, alpha=0.8)
+        bottom += Y
+    for i in boundaries['b']:
+        plt.axvline(i, color="black", linestyle="dashed", alpha=0.2)
 
 
-#     plt.ylabel("depth")
-#     plt.xlabel("position")
-#     plt.legend()
-#     # plt.savefig(f'/content/drive/MyDrive/new_alignment_with_cigar_overlay_A2_B2_O2,40_E2_endbonus50/{fname}')
+    # plotting fragment bounds
+    idx = 0.0
+    for i, (s,e) in enumerate(flen):
+        for j in range(s,e):
+            plt.axvline(j, color='black', linestyle='dashed', alpha=0.2)
+        if not fpass[i]:
+            plt.axvspan(idx, e, color='red', alpha=0.2)
+        idx = e
+
+
+    plt.ylabel("depth")
+    plt.xlabel("position")
+    plt.legend()
+    plt.savefig(f'/data/conf_cigars/{fname}')
 
 
 def find_perfect_sequences_across_deletion(ref_seq, samfile, deletions):
@@ -583,7 +583,14 @@ def max_ad(seq, strt_idx, end_idx) -> str:
     return max_seq
 
 
-def analyze_exact_deletion(seq, strt_end_idx, info, total_reads, perfect, deletion_coords, overlaps) -> dict:
+def analyze_exact_deletion(seq,
+                           strt_end_idx,
+                           info,
+                           total_reads,
+                           perfect,
+                           deletion_coords,
+                           overlaps,
+                           frag_gc) -> dict:
     strt, end = strt_end_idx.split('-')
     # Take out TAF (22bp long) to get correct indices relative to just the reference sequence
     strt = int(strt) - 22
@@ -840,40 +847,26 @@ def analyze_exact_deletion(seq, strt_end_idx, info, total_reads, perfect, deleti
     prev_begin = overlaps[0][0]
     # prev_end = overlaps[0][1]
     exact_deletion_data['within_one_fragment'] = ''
+    exact_deletion_data['fragment_gc_content'] = ''
+    idx = 0
     for (overlap_begin, overlap_end) in overlaps[1:]:
         if prev_begin <= strt <= overlap_end:
             if overlap_begin <= strt:
                 dist_5prime = overlap_begin - strt#negative
             else:
                 dist_5prime = strt - prev_begin
-
         if prev_begin <= end <= overlap_end:
+            exact_deletion_data['fragment_gc_content'] = frag_gc[idx]
             if overlap_begin <= end:
                 dist_3prime = end - overlap_end
             else:
                 dist_3prime = overlap_end - end#negative
-
             if strt - abs(dist_5prime) == prev_begin:
                 exact_deletion_data['within_one_fragment'] = 'True'
             else:
                 exact_deletion_data['within_one_fragment'] = 'False'
-
-
-        # if overlap_begin <= strt:
-        #     if strt <= overlap_end:
-        #         dist_5prime = overlap_begin - strt#negative
-        #     else:
-        #         dist_5prime = strt - overlap_begin
-        # if end <= overlap_end:
-        #     if overlap_begin <= end:
-        #         dist_3prime = end - overlap_end
-        #     else:
-        #         dist_3prime = overlap_end - end#negative
-        # else:
-        #     exact_deletion_data['within_one_fragment'] = 'True' if dist_5prime == prev_prev_begin else 'False'
-        #     break
         prev_begin = overlap_begin
-        # prev_end = overlap_end
+        idx += 1
     exact_deletion_data['distance_to_fragment_overhang_5prime'] = dist_5prime
     # exact_deletion_data['distance_to_fragment_overhang_5prime_2'] = dist_5prime[1]
     # exact_deletion_data['distance_to_fragment_overhang_3prime_1'] = dist_3prime[0]
@@ -921,6 +914,7 @@ def process_deletions(
         gene_id,
         well_ct,
         overlaps,
+        frag_gc,
         min_ratio=0.05
     ) -> None:
     # for top 5 deletions ==========================================
@@ -955,7 +949,7 @@ def process_deletions(
             if float(ct / total_reads) < 0.002:
                 print('CUT!!!')
                 break
-            if inner_idx > 10:
+            if inner_idx > 1:#10:#going with the top deletion per group rn
                 break
             current_top_deletions[f'{gene_id}_{well_ct}'][strt_end_idx], past_deletion_coords = analyze_exact_deletion(
                 seq,
@@ -964,7 +958,8 @@ def process_deletions(
                 total_reads,
                 perfect,
                 past_deletion_coords,
-                overlaps
+                overlaps,
+                frag_gc
             )
             current_top_deletions[f'{gene_id}_{well_ct}'][strt_end_idx]['group_percent'] = float(group_sum / total_reads)
 

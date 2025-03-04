@@ -170,41 +170,6 @@ def get_number_failed_frags(frag_data: pd.DataFrame, frag_id_2_frag_len) -> dict
     return seq_id_2_frag_pass
 
 
-# Using st_final files found from sql (bfx) system
-# Sequence-ID to Confirmation Data
-# connecting 7454 / 10010 sequences with existing fragment data to its confirmation data
-def get_conf_data(
-        df: pd.DataFrame,
-        batch: str,
-        date: str
-    ):
-    '''
-    Returns dict of sequence id:
-        wells passing (i.e., passing dial-out),
-        total wells,
-        date
-    '''
-    seq_id_2_conf_pass = {}
-    for i, row in df.iterrows():
-        seq_id = str(row['Elegen gene ID']) + '_' + batch
-        try:
-            passing = row['sequence_err'].lower() == 'pass' and row['ngs_overall'].lower() == 'pass' and row['sp1_pass'].lower() == 'pass' and row['sp2_pass'].lower() == 'pass'
-        except:
-            passing = row['ngs_overall'].lower() == 'pass' and row['sp1_pass'].lower() == 'pass' and row['sp2_pass'].lower() == 'pass'
-        if seq_id in seq_id_2_conf_pass:
-            seq_id_2_conf_pass[seq_id]['wells_passing'] += int(passing)
-            seq_id_2_conf_pass[seq_id]['total_wells'] += 1
-        else:
-            seq_id_2_conf_pass[seq_id] = {
-                'wells_passing': int(passing),
-                'total_wells': 1,
-                'date': date,
-                'barcode_count': 0,
-                'deletions': []#just saving top 5
-            }
-    return seq_id_2_conf_pass
-
-
 def longest_common_substring(s1, s2):
     m = len(s1)
     n = len(s2)
@@ -410,10 +375,10 @@ def ATGC_secondary_structures(s1: str, s2: str, loop_len = 0, mismatch_penalty= 
             score -= mismatch_penalty
         i1 += 1
         i2 += 1
-
     if loop_len > 3:
         score -= mismatch_penalty*(loop_len-3)
     return score
+
 
 def rev_comp(seq: str):
     revs = {
@@ -575,21 +540,13 @@ def find_only_repeats(del_segment: str) -> list:
     # repeats = find_repeats(del_segment)
     try:
         repeats = find_repeats(del_segment)
+        near_repeats = find_near_repeats(del_segment)
     except:
-        # print(del_segment, len(del_segment))
-        return []
-    return repeats
-
-
-def find_only_near_repeats(del_segment: str) -> list:
-    # repeats = find_near_repeats(del_segment)
-    try:
-        repeats = find_near_repeats(del_segment)
-    except:
-        # print(del_segment, len(del_segment))
-        return []
-    return repeats
-
+        return {}
+    return {
+        'repeats': repeats,
+        'near_repeats': near_repeats
+    }
 
 
 def change_hairpin_notation(hr: dict, origin=0, invert=1):
@@ -604,6 +561,20 @@ def change_hairpin_notation(hr: dict, origin=0, invert=1):
         })
         if 'mismatch_count' in h:
             summary[i]['mismatch_count'] = h['mismatch_count']
+    return summary
+
+
+def change_repeat_notation(rep_dict: dict, origin=0, invert=1):
+    summary = []
+    for i, r in enumerate(rep_dict):
+        summary.append({
+            'start': (r['positions'][0] - origin)*invert,
+            'end': (r['positions'][1]+r['length'] - origin)*invert,
+            'length': r['length'],
+            'energy': r['ATGC_score']
+        })
+        if 'mismatch_count' in r:
+            summary[i]['mismatch_count'] = r['mismatch_count']
     return summary
 
 
@@ -652,7 +623,7 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
                 consolidated_deletions[coordinates]['Avg_wells_10+log2(frac/(1-frac))'] += 10 + log2(max(2**-15, frac / (1 - frac))) if frac != 1 else 2**63 - 1
                 group_frac = data_fields['group_percent']
                 consolidated_deletions[coordinates]['Avg_wells_10+log2(group_frac/(1-group_frac))'] += 10 + log2(max(2 **-15, group_frac / (1 - group_frac))) if group_frac != 1 else 2**63 - 1
-
+                consolidated_deletions[coordinates]['Log2_deletion_group_percent_of_reads'] += max(log2(group_frac), -15)
             else:
                 consolidated_deletions[coordinates] = data_fields
                 consolidated_deletions[coordinates]['perfect_sequence_across_deletion'] = (data_fields['perfect_sequence_across_deletion'].lower() == 'true')
@@ -660,6 +631,7 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
                 consolidated_deletions[coordinates]['Avg_wells_10+log2(frac/(1-frac))'] = 10 + log2(max(2**-15, frac / (1 - frac))) if frac != 1 else 2**63 - 1
                 group_frac = data_fields['group_percent']
                 consolidated_deletions[coordinates]['Avg_wells_10+log2(group_frac/(1-group_frac))'] = 10 + log2(max(2**-15, group_frac / (1 - group_frac))) if group_frac != 1 else 2**63 - 1
+                consolidated_deletions[coordinates]['Log2_deletion_group_percent_of_reads'] = max(log2(group_frac), -15)
             if group_frac < 0.05:
                 print(' ======================================= CHECK ERROR IN GROUP FRAC RECORDING ==================================================')
     
@@ -669,6 +641,7 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
         cd_data['Log2_exact_deletion'] /= cd_data['appears_in_x_wells']
         cd_data['Avg_wells_10+log2(frac/(1-frac))'] /= cd_data['appears_in_x_wells']
         cd_data['Avg_wells_10+log2(group_frac/(1-group_frac))'] /= cd_data['appears_in_x_wells']
+        cd_data['Log2_deletion_group_percent_of_reads'] /= cd_data['appears_in_x_wells']
 
         added_group = False
         for i, (group_strts, group_ends, log2_group_percent, exact_del_data, ct) in enumerate(group_del_groups):
@@ -685,10 +658,10 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
         if not added_group:
             group_del_groups.append(
                 [{cd_data['group_start']},# make into set to not double count group boundaries
-                    {cd_data['group_end']},
-                    cd_data['Log2_deletion_group_percent_of_reads'],
-                    [cd_data],#just store the whole group's individual deletions
-                    1]#count
+                 {cd_data['group_end']},
+                 cd_data['Log2_deletion_group_percent_of_reads'],
+                 [cd_data],#just store the whole group's individual deletions
+                 1]#count
             )
     for i, (group_strts, group_ends, log2_group_percent, exact_del_data, ct) in enumerate(group_del_groups):
         log2_group_percent /= ct
@@ -789,6 +762,7 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
             ds = exact_del['del_start']
             de = exact_del['del_end']
 
+            # === Dynamic Programming ===
             seq1_dp_left = seq[ds+lR-50:ds+lR]#inboard
             seq2_dp_left = seq[de+rR-50:de+rR]#inside deletion
             dpLeftPath, dpLeftEnergy, dpLeftSequence = find_graph(seq1_dp_left,seq2_dp_left)
@@ -810,35 +784,583 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
             else:
                 fe = de - exact_del['distance_to_fragment_overhang_5prime']
 
-            # +/-50bp around LR:
-            lr50_hairpins = find_only_hairpins(seq[ds+lR-50:ds+lR+50])
-            if len(lr50_hairpins):
+            # === Secondary Structures ===
+            # +/-100bp around LR:
+            lr100_hairpins = find_only_hairpins(seq[ds+lR-100:ds+lR+100])
+            if len(lr100_hairpins):
                 sec_struct_2_keep = {}
-                for k,v in lr50_hairpins.items():
+                for k,v in lr100_hairpins.items():
                     sec_struct_2_keep[k] = []
                     for strukt in v[:5]:
                         sec_struct_2_keep[k].append(strukt)
-                exact_del['5_prime_hairpins'] = change_hairpin_notation(sec_struct_2_keep['hairpins'], 50)
-                exact_del['5_prime_near_hairpins'] = change_hairpin_notation(sec_struct_2_keep['near_hairpins'], 50)
+                exact_del['5_prime_hairpins'] = change_hairpin_notation(sec_struct_2_keep['hairpins'], 100)
+                exact_del['5_prime_near_hairpins'] = change_hairpin_notation(sec_struct_2_keep['near_hairpins'], 100)
             else:
                 exact_del['5_prime_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''}]
                 exact_del['5_prime_near_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''}]
 
-            # +/-50bp around RL:
-            rl50_hairpins = find_only_hairpins(seq[de-lR-50:de-lR+50])
-            if len(rl50_hairpins):
+            lr100_repeats = find_only_repeats(seq[ds+lR-100:ds+lR+100])
+            if len(lr100_repeats):
                 sec_struct_2_keep = {}
-                for k,v in rl50_hairpins.items():
+                for k,v in lr100_repeats.items():
                     sec_struct_2_keep[k] = []
                     for strukt in v[:5]:
                         sec_struct_2_keep[k].append(strukt)
-                exact_del['3_prime_hairpins'] = change_hairpin_notation(sec_struct_2_keep['hairpins'], 50, -1)
-                exact_del['3_prime_near_hairpins'] = change_hairpin_notation(sec_struct_2_keep['near_hairpins'], 50, -1)
+                exact_del['5_prime_repeats'] = change_repeat_notation(sec_struct_2_keep['repeats'], 100)
+                exact_del['5_prime_near_repeats'] = change_repeat_notation(sec_struct_2_keep['near_repeats'], 100)
+            else:
+                exact_del['5_prime_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
+                exact_del['5_prime_near_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''}]
+
+
+            # +/-100bp around RL:
+            rl100_hairpins = find_only_hairpins(seq[de-lR-100:de-lR+100])
+            if len(rl100_hairpins):
+                sec_struct_2_keep = {}
+                for k,v in rl100_hairpins.items():
+                    sec_struct_2_keep[k] = []
+                    for strukt in v[:5]:
+                        sec_struct_2_keep[k].append(strukt)
+                exact_del['3_prime_hairpins'] = change_hairpin_notation(sec_struct_2_keep['hairpins'], 100, -1)
+                exact_del['3_prime_near_hairpins'] = change_hairpin_notation(sec_struct_2_keep['near_hairpins'], 100, -1)
             else:
                 exact_del['3_prime_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''}]
                 exact_del['3_prime_near_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''}]
 
+            rl100_repeats = find_only_repeats(seq[de-lR-100:de-lR+100])
+            if len(rl100_repeats):
+                sec_struct_2_keep = {}
+                for k,v in rl100_repeats.items():
+                    sec_struct_2_keep[k] = []
+                    for strukt in v[:5]:
+                        sec_struct_2_keep[k].append(strukt)
+                exact_del['3_prime_repeats'] = change_repeat_notation(sec_struct_2_keep['repeats'], 100, -1)
+                exact_del['3_prime_near_repeats'] = change_repeat_notation(sec_struct_2_keep['near_repeats'], 100, -1)
+            else:
+                exact_del['3_prime_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
+                exact_del['3_prime_near_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''}]
 
+            # OVERALL SECONDARY STRUCTURES
+            overall_hairpins = find_only_hairpins(seq[ds-100:de+100])
+            if len(overall_hairpins):
+                sec_struct_2_keep = {}
+                for k,v in overall_hairpins.items():
+                    sec_struct_2_keep[k] = []
+                    top5limit = 5
+                    for strukt in v:
+                        if (strukt['positions'][0] < 100+lR and 100+lR-strukt['positions'][0] < strukt['length']/2) or ((strukt['positions'][1] + strukt['length'] > 100+de-ds-rL) and ((strukt['positions'][1]+strukt['length']) - (100+de-ds-rL) < strukt['length']/2)):
+                            strukt['positions'][0] -= (100+lR)
+                            strukt['positions'][1] -= (100+de-ds-rL)
+                            strukt['positions'][1] *= -1
+                            ov_hp = {
+                                'start': strukt['positions'][0],
+                                'end': strukt['positions'][1] - strukt['length'],
+                                'stem': strukt['length'],
+                                'loop': strukt['loop_length'],
+                                'energy': strukt['ATGC_score']
+                            }
+                            if 'mismatch_count' in strukt:
+                                ov_hp['mismatch_count'] = strukt['mismatch_count']
+                            sec_struct_2_keep[k].append(ov_hp)
+                            top5limit -= 1
+                        if top5limit <= 0:
+                            break
+                exact_del['Overall_hairpins'] = sec_struct_2_keep['hairpins']
+                exact_del['Overall_near_hairpins'] = sec_struct_2_keep['near_hairpins']
+            else:
+                exact_del['Overall_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''}]
+                exact_del['Overall_near_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''}]
+
+            # overall repeats
+            overall_reps = find_only_repeats(seq[ds-lL-100:de+rR+100])
+            if len(overall_reps):
+                for k,v in overall_reps.items():
+                    sec_struct_2_keep[k] = []
+                    for strukt in v[:5]:
+                            strukt['positions'][0] -= (100+lR)
+                            strukt['positions'][1] -= (100+de-ds-rL)
+                            strukt['positions'][1] *= -1
+                            ov_rp = {
+                                'start': strukt['positions'][0],
+                                'end': strukt['positions'][1] - strukt['length'],
+                                'length': strukt['length'],
+                                'energy': strukt['ATGC_score']
+                            }
+                            if 'mismatch_count' in strukt:
+                                ov_rp['mismatch_count'] = strukt['mismatch_count']
+                            sec_struct_2_keep[k].append(ov_rp)
+                exact_del['Overall_repeats'] = sec_struct_2_keep['repeats']
+                exact_del['Overall_near_repeats'] = sec_struct_2_keep['near_repeats']
+            else:
+                exact_del['Overall_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
+                exact_del['Overall_near_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''}]
+
+
+            # ================================================== REVERSE REPEATS ==================================================
+            overall_reverse_reps = top_5_longest_common_substrings(seq[ds-100+lR:de+100-rL], seq[ds-100+lR:de+100-rL:-1])
+            if len(overall_reverse_reps):
+                sec_struct_2_keep = []
+                for (revrep, atgc_score) in overall_reverse_reps:
+                    # check if reverse repeat or forward repeat 
+                    idx1_1 = seq[ds-100+lR:de+100-rL].find(revrep) - 100 - lR
+                    idx1_2 = seq[ds-100+lR:de+100-rL].find(revrep[::-1]) - 100 - lR
+                    idx2_1 = seq[ds-100+lR:de+100-rL:-1].find(revrep) - 100 - rL
+                    idx2_2 = seq[ds-100+lR:de+100-rL:-1].find(revrep[::-1]) - 100 - rL
+                    sec_struct_2_keep.append({
+                        'start': min(idx1_1,idx1_2),
+                        'end': min(idx2_1,idx2_2),
+                        'length': len(revrep),
+                        'energy': atgc_score
+                    })
+                exact_del['Overall_reverse_repeats'] = sec_struct_2_keep
+            else:
+                exact_del['Overall_reverse_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
+            
+            # checking for secondary structures in fragment ends if deletion is over 150bp away from ends
+            if ds - fs >= 150 and fe - de >= 150:
+                fragment_start_reps = find_only_repeats(seq[fs:fs+100])
+                if len(fragment_start_reps):
+                    sec_struct_2_keep = {}
+                    for k,v in fragment_start_reps.items():
+                        sec_struct_2_keep[k] = []
+                        for strukt in v[:5]:
+                            sec_struct_2_keep[k].append(strukt)
+                    exact_del['fragment_start_repeats'] = change_repeat_notation(sec_struct_2_keep['repeats'])
+                    exact_del['fragment_start_near_repeats'] = change_repeat_notation(sec_struct_2_keep['near_repeats'])
+                else:
+                    exact_del['fragment_start_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
+                    exact_del['fragment_start_near_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''}]
+                
+                fragment_end_reps = find_only_repeats(seq[fe-100:fe])
+                if len(fragment_end_reps):
+                    sec_struct_2_keep = {}
+                    for k,v in fragment_end_reps.items():
+                        sec_struct_2_keep[k] = []
+                        for strukt in v[:5]:
+                            sec_struct_2_keep[k].append(strukt)
+                    exact_del['fragment_end_repeats'] = change_repeat_notation(sec_struct_2_keep['repeats'], 0, -1)
+                    exact_del['fragment_end_near_repeats'] = change_repeat_notation(sec_struct_2_keep['near_repeats'], 0, -1)
+                else:
+                    exact_del['fragment_end_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
+                    exact_del['fragment_end_near_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''}]
+
+
+
+            # Fixing right/left energy+offset
+            right_energy, right_offset, left_energy, left_offset = fix_energy_score(exact_del['matching_over_deletion'])
+            
+            # fixing longest_repeat offset
+            long_rep = longest_substring(fiveprime_end, threeprime_end)
+            exact_del['longest_repeat'] = long_rep
+            fiveprime_offset = (len(long_rep) + fiveprime_end.find(long_rep)) - (50 + lR)
+            threeprime_offset = (49 - rL) - (threeprime_end.find(long_rep) + len(long_rep))
+
+            after_del = threeprime_end[50-rL:]
+            beginning_del = fiveprime_end[50+lR:]
+            longest_repeat_beginning_del_after_del = longest_substring(beginning_del, after_del)
+            repeat_dist_beg_del = beginning_del.find(longest_repeat_beginning_del_after_del) + len(longest_repeat_beginning_del_after_del)#can be zero-indexed
+            repeat_dist_after_del = -(1 + after_del.find(longest_repeat_beginning_del_after_del) + len(longest_repeat_beginning_del_after_del))
+
+            before_del = fiveprime_end[:50+lR]
+            end_del = threeprime_end[:50-rL]
+            longest_repeat_before_del_end_del = longest_substring(before_del, end_del)
+            repeat_dist_before_del = 50 + lR - (len(longest_repeat_before_del_end_del) + before_del.find(longest_repeat_before_del_end_del))
+            repeat_dist_end_del = 50 - rL - (1 + len(longest_repeat_before_del_end_del) + end_del.find(longest_repeat_before_del_end_del))#can be zero-indexed
+
+            # if rightmost_strt == exact_del['del_start']:
+            #     exact_del['furthest_right'] = True
+            # if leftmost_end == exact_del['del_end']:
+            #     exact_del['furthest_left'] = True
+
+
+
+            tmp = {
+                # Sequence meta-data:
+                'batch_num': batch_num,
+                'total_wells': well_cnt,
+                'Log2 Total Reads in Well': exact_del['log2_total_reads_well'],
+
+                # Exact-Deletion Data
+                'del_start': exact_del['del_start'],
+                'del_end': exact_del['del_end'],
+                'del_length': exact_del['del_end'] - exact_del['del_start'],
+                'longest_repeat': long_rep,
+                'longest_repeat_dist_5prime': fiveprime_offset,
+                'longest_repeat_dist_3prime': threeprime_offset,
+
+
+                'Avg_wells_10+log2(frac/(1-frac))': exact_del['Avg_wells_10+log2(frac/(1-frac))'],
+                'Avg_wells_10+log2(group_frac/(1-group_frac))': exact_del['Avg_wells_10+log2(group_frac/(1-group_frac))'],
+                'Left_End_Score': exact_del['left_end_score'],
+                'Right_End_Score': exact_del['right_end_score'],
+                'LL': exact_del['LL'],
+                'LR': exact_del['LR'],
+                'RL': exact_del['RL'],
+                'RR': exact_del['RR'],
+
+                '10bp_before_deletion': exact_del['bases_at_beginning_of_deletion'][40:50],
+                '10bp_into_deletion_start': exact_del['bases_at_beginning_of_deletion'][51:61],
+                '10bp_before_deletion_end': exact_del['bases_at_end_of_deletion'][40:50],
+                '10bp_after_deletion': exact_del['bases_at_end_of_deletion'][51:61],
+                # 'del_in_x_wells': exact_del['appears_in_x_wells'],
+                # 'similar_to_past_deletion': exact_del['similar_to_past_deletion'],
+                'read_ct': exact_del['read_ct'],
+                'percentage_of_reads': exact_del['percentage_of_reads'],
+                'matching_over_deletion': exact_del['matching_over_deletion'],
+                'left_Single_Match': exact_del['left_matching_score_mismatch_1'],
+                'left_Tail': exact_del['left_matching_score_match_1'],
+                'left-Match_1': exact_del['left_matching_score_mismatch_2'],
+                'left-GC_content_1': exact_del['left_match_group_GC_score_content_1'],
+                'left-Mismatch_1': exact_del['left_matching_score_match_2'],
+                'left-Match_2': exact_del['left_matching_score_mismatch_3'],
+                'left-GC_content_2': exact_del['left_match_group_GC_score_content_2'],
+                'left-Mismatch_2': exact_del['left_matching_score_match_3'],
+                'left-Match_3': exact_del['left_matching_score_mismatch_4'],
+                'left-GC_content_3': exact_del['left_match_group_GC_score_content_3'],
+                'left-Mismatch_3': exact_del['left_matching_score_match_4'],
+                'left-Match_4': exact_del['left_matching_score_mismatch_5'],
+                'left-GC_content_4': exact_del['left_match_group_GC_score_content_4'],
+                'left-Mismatch_4': exact_del['left_matching_score_match_5'],
+                # 'left-Match_5': exact_del['left_matching_score_mismatch_2'],
+                # 'left-GC_content_5': exact_del['left_match_group_GC_score_content_5'],
+                # 'left-Mismatch_5': exact_del['left_matching_score_mismatch_2'],
+
+                'right_Single_Match': exact_del['right_matching_score_mismatch_1'],
+                'right_Tail': exact_del['right_matching_score_match_1'],
+                'right-Match_1': exact_del['right_matching_score_mismatch_2'],
+                'right-GC_content_1': exact_del['right_match_group_GC_score_content_1'],
+                'right-Mismatch_1': exact_del['right_matching_score_match_2'],
+                'right-Match_2': exact_del['right_matching_score_mismatch_3'],
+                'right-GC_content_2': exact_del['right_match_group_GC_score_content_2'],
+                'right-Mismatch_2': exact_del['right_matching_score_match_3'],
+                'right-Match_3': exact_del['right_matching_score_mismatch_4'],
+                'right-GC_content_3': exact_del['right_match_group_GC_score_content_3'],
+                'right-Mismatch_3': exact_del['right_matching_score_match_4'],
+                'right-Match_4': exact_del['right_matching_score_mismatch_5'],
+                'right-GC_content_4': exact_del['right_match_group_GC_score_content_4'],
+                'right-Mismatch_4': exact_del['right_matching_score_match_5'],
+
+                'right_energy': right_energy,
+                'right_offset': right_offset,
+                'left_energy': left_energy,
+                'left_offset': left_offset,
+                'gc_content_frag_start_LR': exact_del['gc_content_frag_start_LR'],
+
+                'longest_repeat_beginning_del_after_del': longest_repeat_beginning_del_after_del,
+                'dist_beg_del-longest_repeat_beginning_del_after_del': repeat_dist_beg_del,
+                'dist_after_del-longest_repeat_beginning_del_after_del': repeat_dist_after_del,
+                'longest_repeat_before_del_end_del': longest_repeat_before_del_end_del,
+                'dist_before_del-longest_repeat_before_del_end_del': repeat_dist_before_del,
+                'dist_end_del-longest_repeat_before_del_end_del': repeat_dist_end_del,
+                'longest_repeat_score': exact_del['longest_repeat_score'],
+                'longest_a-d_ligation_repeat': exact_del['longest_a-d_ligation_repeat'],
+                'within_one_fragment': exact_del['within_one_fragment'],
+                'distance_to_fragment_overhang_5prime': exact_del['distance_to_fragment_overhang_5prime'],
+                'distance_to_fragment_overhang_3prime': exact_del['distance_to_fragment_overhang_3prime'],
+                'fragment_gc_content': exact_del['fragment_gc_content'],
+
+                'perfect_sequence_across_deletion': str(exact_del['perfect_sequence_across_deletion']),
+                'energy_longest_repeat_beginning_del_after_del': exact_del['energy_longest_repeat_beginning_del_after_del'],
+                'energy_longest_repeat_before_del_end_del': exact_del['energy_longest_repeat_before_del_end_del'],
+                'Log2_exact_deletion_frequency': exact_del['Log2_exact_deletion'],
+                # 'Log2_group_deletion_frequency': log2_group_percent#exact_del['Log2_deletion_group_frequency'],
+            }
+
+            # regions = ['5_prime', '3_prime', 'Overall']
+            # structures = ['hairpins', 'near_hairpins', 'repeats', 'near_repeats']
+            # for reg in regions:
+            #     for stru in structures:
+            #         while len(exact_del[f'{reg}_{stru}']) < 5:
+            #             if stru[:4] != 'near':
+            #                 exact_del[f'{reg}_{stru}'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''})
+            #             else:
+            #                 exact_del[f'{reg}_{stru}'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''})
+            #         for b,c in enumerate(exact_del[f'{reg}_{stru}']):
+            #             tmp[f'{reg}_{stru}_start'] = c['start']
+            #             tmp[f'{reg}_{stru}_end'] = c['end']
+            #             tmp[f'{reg}_{stru}_'] = c['']
+            #             tmp[f'{reg}_{stru}_'] = c['']
+            #             tmp[f'{reg}_{stru}_'] = c['']
+
+            #             tmp[f'{reg}_{stru}_'] = c['']
+            # Exact deletion secondary structures
+            while len(exact_del['5_prime_hairpins']) < 5:
+                exact_del['5_prime_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''})
+            for b,c in enumerate(exact_del['5_prime_hairpins']):
+                tmp[f'5_prime_hairpins_start_{b}'] = c['start'] 
+                tmp[f'5_prime_hairpins_end_{b}'] = c['end'] 
+                tmp[f'5_prime_hairpins_stem_{b}'] = c['stem']
+                tmp[f'5_prime_hairpins_loop_{b}'] = c['loop']
+                tmp[f'5_prime_hairpins_energy_{b}'] = c['energy']
+            while len(exact_del['5_prime_near_hairpins']) < 5:
+                exact_del['5_prime_near_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''})
+            for b,c in enumerate(exact_del['5_prime_near_hairpins']):
+                tmp[f'5_prime_near_hairpins_start_{b}'] = c['start']
+                tmp[f'5_prime_near_hairpins_end_{b}']=  c['end']
+                tmp[f'5_prime_near_hairpins_stem_{b}'] = c['stem']
+                tmp[f'5_prime_near_hairpins_loop_{b}'] =  c['loop']
+                tmp[f'5_prime_near_hairpins_energy_{b}'] = c['energy']
+                tmp[f'5_prime_near_hairpins_mismatch_count_{b}'] = c['mismatch_count']
+            
+            while len(exact_del['5_prime_repeats']) < 5:
+                exact_del['5_prime_repeats'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''})
+            for b,c in enumerate(exact_del['5_prime_repeats']):
+                tmp[f'5_prime_repeats_start_{b}'] = c['start'] 
+                tmp[f'5_prime_repeats_end_{b}'] = c['end'] 
+                tmp[f'5_prime_repeats_stem_{b}'] = c['stem']
+                tmp[f'5_prime_repeats_loop_{b}'] = c['loop']
+                tmp[f'5_prime_repeats_energy_{b}'] = c['energy']
+            while len(exact_del['5_prime_near_repeats']) < 5:
+                exact_del['5_prime_near_repeats'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''})
+            for b,c in enumerate(exact_del['5_prime_near_repeats']):
+                tmp[f'5_prime_near_repeats_start_{b}'] = c['start']
+                tmp[f'5_prime_near_repeats_end_{b}']=  c['end']
+                tmp[f'5_prime_near_repeats_stem_{b}'] = c['stem']
+                tmp[f'5_prime_near_repeats_loop_{b}'] =  c['loop']
+                tmp[f'5_prime_near_repeats_energy_{b}'] = c['energy']
+                tmp[f'5_prime_near_repeats_mismatch_count_{b}'] = c['mismatch_count']
+            
+
+            while len(exact_del['3_prime_hairpins']) < 5:
+                exact_del['3_prime_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''})
+            for b,c in enumerate(exact_del['3_prime_hairpins']):
+                tmp[f'3_prime_hairpins_start_{b}'] = c['start'] 
+                tmp[f'3_prime_hairpins_end_{b}'] = c['end'] 
+                tmp[f'3_prime_hairpins_stem_{b}'] = c['stem']
+                tmp[f'3_prime_hairpins_loop_{b}'] = c['loop']
+                tmp[f'3_prime_hairpins_energy_{b}'] = c['energy']
+            while len(exact_del['3_prime_near_hairpins']) < 5:
+                exact_del['3_prime_near_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''})
+            for b,c in enumerate(exact_del['3_prime_near_hairpins']):
+                tmp[f'3_prime_near_hairpins_start_{b}'] = c['start']
+                tmp[f'3_prime_near_hairpins_end_{b}']=  c['end']
+                tmp[f'3_prime_near_hairpins_stem_{b}'] = c['stem']
+                tmp[f'3_prime_near_hairpins_loop_{b}'] =  c['loop']
+                tmp[f'3_prime_near_hairpins_energy_{b}'] = c['energy']
+                tmp[f'3_prime_near_hairpins_mismatch_count_{b}'] = c['mismatch_count']
+
+            while len(exact_del['3_prime_repeats']) < 5:
+                exact_del['3_prime_repeats'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''})
+            for b,c in enumerate(exact_del['3_prime_repeats']):
+                tmp[f'3_prime_repeats_start_{b}'] = c['start'] 
+                tmp[f'3_prime_repeats_end_{b}'] = c['end'] 
+                tmp[f'3_prime_repeats_stem_{b}'] = c['stem']
+                tmp[f'3_prime_repeats_loop_{b}'] = c['loop']
+                tmp[f'3_prime_repeats_energy_{b}'] = c['energy']
+            while len(exact_del['3_prime_near_repeats']) < 5:
+                exact_del['3_prime_near_repeats'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''})
+            for b,c in enumerate(exact_del['3_prime_near_repeats']):
+                tmp[f'3_prime_near_repeats_start_{b}'] = c['start']
+                tmp[f'3_prime_near_repeats_end_{b}']=  c['end']
+                tmp[f'3_prime_near_repeats_stem_{b}'] = c['stem']
+                tmp[f'3_prime_near_repeats_loop_{b}'] =  c['loop']
+                tmp[f'3_prime_near_repeats_energy_{b}'] = c['energy']
+                tmp[f'3_prime_near_repeats_mismatch_count_{b}'] = c['mismatch_count']
+
+
+            while len(exact_del['Overall_hairpins']) < 5:
+                exact_del['Overall_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''})
+            for b,c in enumerate(exact_del['Overall_hairpins']):
+                tmp[f'Overall_hairpins_start_{b}'] = c['start'] 
+                tmp[f'Overall_hairpins_end_{b}'] = c['end'] 
+                tmp[f'Overall_hairpins_stem_{b}'] = c['stem']
+                tmp[f'Overall_hairpins_loop_{b}'] = c['loop']
+                tmp[f'Overall_hairpins_energy_{b}'] = c['energy']
+            while len(exact_del['Overall_near_hairpins']) < 5:
+                exact_del['Overall_near_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''})
+            for b,c in enumerate(exact_del['Overall_near_hairpins']):
+                tmp[f'Overall_near_hairpins_start_{b}'] = c['start']
+                tmp[f'Overall_near_hairpins_end_{b}'] = c['end']
+                tmp[f'Overall_near_hairpins_stem_{b}'] = c['stem']
+                tmp[f'Overall_near_hairpins_loop_{b}'] =  c['loop']
+                tmp[f'Overall_near_hairpins_energy_{b}'] = c['energy']
+                tmp[f'Overall_near_hairpins_mismatch_count_{b}'] = c['mismatch_count']
+            
+            while len(exact_del['Overall_repeats']) < 5:
+                exact_del['Overall_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': ''})
+            for b,c in enumerate(exact_del['Overall_repeats']):
+                tmp[f'Overall_repeats_start_{b}'] = c['start'] 
+                tmp[f'Overall_repeats_end_{b}'] = c['end'] 
+                tmp[f'Overall_repeats_length_{b}'] = c['length']
+                tmp[f'Overall_repeats_energy_{b}'] = c['energy']
+            while len(exact_del['Overall_near_repeats']) < 5:
+                exact_del['Overall_near_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''})
+            for b,c in enumerate(exact_del['Overall_near_repeats']):
+                tmp[f'Overall_near_repeats_start_{b}'] = c['start']
+                tmp[f'Overall_near_repeats_end_{b}'] = c['end']
+                tmp[f'Overall_near_repeats_length_{b}'] = c['length']
+                tmp[f'Overall_near_repeats_energy_{b}'] = c['energy']
+                tmp[f'Overall_near_repeats_mismatch_count_{b}'] = c['mismatch_count']
+
+
+            while len(exact_del['Overall_reverse_repeats']) < 5:
+                exact_del['Overall_reverse_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': ''})
+            for b,c in enumerate(exact_del['Overall_reverse_repeats']):
+                tmp[f'Overall_reverse_repeats_start_{b}'] = c['start'] 
+                tmp[f'Overall_reverse_repeats_end_{b}'] = c['end'] 
+                tmp[f'Overall_reverse_repeats_length_{b}'] = c['length']
+                tmp[f'Overall_reverse_repeats_energy_{b}'] = c['energy']         
+
+            # Fragment start-end repeats for deletions beyond 150bp from the fragment ends
+            while len(exact_del['fragment_start_repeats']) < 5:
+                exact_del['fragment_start_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': ''})
+            for b,c in enumerate(exact_del['fragment_end_repeats']):
+                tmp[f'fragment_start_repeats_start_{b}'] = c['start'] 
+                tmp[f'fragment_start_repeats_end_{b}'] = c['end'] 
+                tmp[f'fragment_start_repeats_length_{b}'] = c['length']
+                tmp[f'fragment_start_repeats_energy_{b}'] = c['energy']
+            while len(exact_del['fragment_start_near_repeats']) < 5:
+                exact_del['fragment_start_near_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''})
+            for b,c in enumerate(exact_del['fragment_end_repeats']):
+                tmp[f'fragment_start_near_repeats_start_{b}'] = c['start'] 
+                tmp[f'fragment_start_near_repeats_end_{b}'] = c['end'] 
+                tmp[f'fragment_start_near_repeats_length_{b}'] = c['length']
+                tmp[f'fragment_start_near_repeats_energy_{b}'] = c['energy']
+                tmp[f'fragment_start_near_repeats_mismatch_count_{b}'] = c['mismatch_count']
+
+            while len(exact_del['fragment_end_repeats']) < 5:
+                exact_del['fragment_end_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': ''})
+            for b,c in enumerate(exact_del['fragment_end_repeats']):
+                tmp[f'fragment_end_repeats_start_{b}'] = c['start'] 
+                tmp[f'fragment_end_repeats_end_{b}'] = c['end'] 
+                tmp[f'fragment_end_repeats_length_{b}'] = c['length']
+                tmp[f'fragment_end_repeats_energy_{b}'] = c['energy']
+            while len(exact_del['fragment_end_near_repeats']) < 5:
+                exact_del['fragment_end_near_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''})
+            for b,c in enumerate(exact_del['fragment_end_repeats']):
+                tmp[f'fragment_end_near_repeats_start_{b}'] = c['start'] 
+                tmp[f'fragment_end_near_repeats_end_{b}'] = c['end'] 
+                tmp[f'fragment_end_near_repeats_length_{b}'] = c['length']
+                tmp[f'fragment_end_near_repeats_energy_{b}'] = c['energy']
+                tmp[f'fragment_end_near_repeats_mismatch_count_{b}'] = c['mismatch_count']
+
+            # Left side for dynamic programming
+            tmp['dp_Left_Sequence'] = dpLeftSequence
+            tmp['dp_Left_Energy'] = dpLeftEnergy
+            lim5 = 0
+            for k,v in dpLeftPathDict.items():
+                tmp[f'{k}_LEFT'] = v
+                if k[-2:] == 'D2':
+                    lim5 += 1
+                    if lim5 == 5: break
+            if lim5 < 5:
+                for _ in range(lim5, 5):
+                    tmp[f'length_{_}'] = 0
+                    tmp[f'energy_{_}'] = 0
+                    tmp[f'sequence_{_}'] = ''
+                    tmp[f'gap{_}_d1'] = 0
+                    tmp[f'gap{_}_d2'] = 0
+            
+            # Right side for dynamic programming
+            tmp['dp_Right_Sequence'] = dpRightSequence
+            tmp['dp_Right_Energy'] = dpRightEnergy
+            lim5 = 0
+            for k,v in dpRightPathDict.items():
+                tmp[f'{k}_RIGHT'] = v
+                if k[-2:] == 'D2':
+                    lim5 += 1
+                    if lim5 == 5: break
+            if lim5 < 5:
+                for _ in range(lim5, 5):
+                    tmp[f'length_{_}'] = 0
+                    tmp[f'energy_{_}'] = 0
+                    tmp[f'sequence_{_}'] = ''
+                    tmp[f'gap{_}_d1'] = 0
+                    tmp[f'gap{_}_d2'] = 0
+            
+            
+            dumpable_data[gene_id][str(exact_del['del_start']) + '-' + str(exact_del['del_end'])] = tmp
+            with open('data/consolidated_top_deletions.json', 'a') as td:
+                json.dump(dumpable_data, td)#save whole dict to save key sequence names
+                td.write(',\n')
+
+
+
+def main():
+    frag_data = Path('data/customer_items_block_quant_alphaprod.csv')
+    frag_id_2_frag_len = get_frag_lengths2(frag_data)
+
+    # instead of getting the st1's from prelive, list them off from alpha prod using
+    # boto3 commands and iterate through those
+    response = s3.list_objects_v2(
+        Bucket=buck,
+        Prefix='static/elegen_csv/st1_csv/'
+    )
+    full_seq_id_2_frag_pass = {}
+    for content in response.get('Contents', []):
+        if content['Key'][-1] == '/' or content['Key'] == 'static/elegen_csv/st1_csv/SVT1-final-qc_18-26-51_08-17-22.csv':#this st1 was eliminated due to misnaming of columns
+            continue
+        print(content['Key'])
+        obj = s3.get_object(Bucket=buck, Key=content['Key'])
+        st1_content = pd.read_csv(obj['Body'])
+        full_seq_id_2_frag_pass.update(get_number_failed_frags(st1_content, frag_id_2_frag_len))
+    print(len(full_seq_id_2_frag_pass))
+
+    # Process the original json
+    error_lines = 0
+    # with open('data/top_deletions_2.3.25_finished.json') as f:
+    # with open('data/top_deletions_5perc_group_2.17_finished.json') as f:
+    with open('data/top_deletions_5perc_group.json') as f:
+        combined_wells = []
+        total_wells = 0
+        gene_in_prev_well = '2078_5_B274-1'
+        broken_datapoints = 0
+        for line in f:
+            try:
+                tmp = ast.literal_eval(line)
+            except:
+                error_lines += 1
+                continue
+            for seq,seq_dels in tmp[0].items():
+                gene_id = seq.rsplit('_', 1)[0]
+                # process deletion groups across all wells for a sequence
+                if gene_id != gene_in_prev_well and gene_in_prev_well:
+                    print(gene_in_prev_well)
+                    process_all_wells(
+                        combined_wells,
+                        total_wells,
+                        gene_in_prev_well,
+                        full_seq_id_2_frag_pass[gene_in_prev_well]['sequence'],
+                    )
+                    # try:
+                    #     process_all_wells(
+                    #         combined_wells,
+                    #         total_wells,
+                    #         gene_in_prev_well,
+                    #         full_seq_id_2_frag_pass[gene_in_prev_well]['sequence'],
+                    #     )
+                    # except KeyError:
+                    #     print(seq)
+
+                    combined_wells = []
+                    total_wells = 0
+                    gene_in_prev_well = gene_id
+
+                tmp_dels = reprocess_well(seq_dels, gene_id, full_seq_id_2_frag_pass[gene_id]['concentrations'])
+                total_wells += 1
+                if total_wells == 1:
+                    combined_wells = [tmp_dels]
+                else:
+                    combined_wells.append(tmp_dels)
+                # try:
+                #     tmp_dels = reprocess_well(seq_dels, gene_id, full_seq_id_2_frag_pass[gene_id]['concentrations'])
+                #     total_wells += 1
+                #     if total_wells == 1:
+                #         combined_wells = [tmp_dels]
+                #     else:
+                #         combined_wells.append(tmp_dels)
+                # except:
+                #     broken_datapoints += 1
+                #     print('broke: ', broken_datapoints, f' {seq}')
+                #     continue
+    
+
+if __name__ == '__main__':
+    main()
+
+
+
+# Secondary Structures Scratchwork
             # # IHFL (Interfering with Hybridization from Left): 
             # #   LL-6<=HR<=LR+1 
             # IHFL_sec_struct = find_only_hairpins(seq[fs:ds+lR+30])
@@ -946,254 +1468,8 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
             #     exact_del['PDFR_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''}]
             #     exact_del['PDFR_near_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''}]
 
-            # OVERALL SECONDARY STRUCTURES
-            overall_hairpins = find_only_hairpins(seq[ds-20:de+20])
-            if len(overall_hairpins):
-                sec_struct_2_keep = {}
-                for k,v in overall_hairpins.items():
-                    sec_struct_2_keep[k] = []
-                    top5limit = 5
-                    for strukt in v:
-                        if (strukt['positions'][0] < 20+lR and 20+lR-strukt['positions'][0] < strukt['length']/2) or ((strukt['positions'][1] + strukt['length'] > 20+de-ds-rL) and ((strukt['positions'][1]+strukt['length']) - (20+de-ds-rL) < strukt['length']/2)):
-                            # if (strukt['ATGC_score'] > 0):
-                            strukt['positions'][0] -= (20+lR)
-                            strukt['positions'][1] -= (20+de-ds-rL)
-                            strukt['positions'][1] *= -1
-                            sec_struct_2_keep[k].append(strukt)
-                            top5limit -= 1
-                        if top5limit <= 0:
-                            break
-                exact_del['Overall_hairpins'] = change_hairpin_notation(sec_struct_2_keep['hairpins'])
-                exact_del['Overall_near_hairpins'] = change_hairpin_notation(sec_struct_2_keep['near_hairpins'])
-            else:
-                exact_del['Overall_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''}]
-                exact_del['Overall_near_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''}]
-            # overall repeats
-            overall_reps = find_only_repeats(seq[ds-lL-35:de+rR+35])
-            overall_near_reps = find_only_near_repeats(seq[ds-lL-35:de+rR+35])
-            if len(overall_reps):
-                sec_struct_2_keep = []
-                top5limit = 5
-                for strukt in overall_reps:
-                    # if (
-                    #     (strukt['positions'][0] >= lR-35)
-                    #     or (strukt['positions'][1]+strukt['length'] <= de-ds+65-rL)
-                    #     # and (strukt['ATGC_score'] > 0)
-                    #     ):
-                    sec_struct_2_keep.append({
-                        'start': strukt['positions'][0] - 35 - lL,
-                        'end': 35 + de - ds + rR - strukt['positions'][1]+strukt['length'],
-                        'length': strukt['length'],
-                        'energy': strukt['ATGC_score']
-                    })
-                    top5limit -= 1
-                    if top5limit <= 0:
-                        break
-                exact_del['Overall_repeats'] = sec_struct_2_keep
-            else:
-                exact_del['Overall_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
-            if len(overall_near_reps):
-                sec_struct_2_keep = []
-                top5limit = 5
-                for strukt in overall_near_reps:
-                    if (
-                        (strukt['positions'][0] >= 5+lR) 
-                        or (strukt['positions'][1]+strukt['length'] <= de-ds+65-rL)
-                        # and (strukt['ATGC_score'] > 0)
-                        ):
-                        sec_struct_2_keep.append({
-                            'start': strukt['positions'][0] - 35 - lR,
-                            'end': 35 + de - ds - rL - strukt['positions'][1]+strukt['length'],
-                            'length': strukt['length'],
-                            'mismatch_count': strukt['mismatch_count'],
-                            'energy': strukt['ATGC_score']
-                        })
-                        top5limit -= 1
-                    if top5limit <= 0:
-                        break
-                exact_del['Overall_near_repeats'] = sec_struct_2_keep
-            else:
-                exact_del['Overall_near_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''}]
 
-            # ================================================== REVERSE REPEATS ==================================================
-            overall_reverse_reps = top_5_longest_common_substrings(seq[ds-30+lR:de+30-rL], seq[ds-30+lR:de+30-rL:-1])
-            if len(overall_reverse_reps):
-                sec_struct_2_keep = []
-                for (revrep, atgc_score) in overall_reverse_reps:
-                    idx1_1 = seq[ds-30+lR:de+30-rL].find(revrep) - 30 - lR
-                    idx1_2 = seq[ds-30+lR:de+30-rL].find(revrep[::-1]) - 30 - lR
-                    idx2_1 = seq[ds-30+lR:de+30-rL:-1].find(revrep) - 30 - rL
-                    idx2_2 = seq[ds-30+lR:de+30-rL:-1].find(revrep[::-1]) - 30 - rL
-                    sec_struct_2_keep.append({
-                        'start': min(idx1_1,idx1_2),
-                        'end': min(idx2_1,idx2_2),
-                        'length': len(revrep),
-                        'energy': atgc_score
-                    })
-
-                exact_del['Overall_reverse_repeats'] = sec_struct_2_keep
-            else:
-                exact_del['Overall_reverse_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
-
-
-
-            # Fixing right/left energy+offset
-            right_energy, right_offset, left_energy, left_offset = fix_energy_score(exact_del['matching_over_deletion'])
-            
-            # fixing longest_repeat offset
-            long_rep = longest_substring(fiveprime_end, threeprime_end)
-            exact_del['longest_repeat'] = long_rep
-            fiveprime_offset = (len(long_rep) + fiveprime_end.find(long_rep)) - (50 + lR)
-            threeprime_offset = (49 - rL) - (threeprime_end.find(long_rep) + len(long_rep))
-
-            after_del = threeprime_end[50-rL:]
-            beginning_del = fiveprime_end[50+lR:]
-            longest_repeat_beginning_del_after_del = longest_substring(beginning_del, after_del)
-            repeat_dist_beg_del = beginning_del.find(longest_repeat_beginning_del_after_del) + len(longest_repeat_beginning_del_after_del)#can be zero-indexed
-            repeat_dist_after_del = -(1 + after_del.find(longest_repeat_beginning_del_after_del) + len(longest_repeat_beginning_del_after_del))
-
-            before_del = fiveprime_end[:50+lR]
-            end_del = threeprime_end[:50-rL]
-            longest_repeat_before_del_end_del = longest_substring(before_del, end_del)
-            repeat_dist_before_del = 50 + lR - (len(longest_repeat_before_del_end_del) + before_del.find(longest_repeat_before_del_end_del))
-            repeat_dist_end_del = 50 - rL - (1 + len(longest_repeat_before_del_end_del) + end_del.find(longest_repeat_before_del_end_del))#can be zero-indexed
-
-            # if rightmost_strt == exact_del['del_start']:
-            #     exact_del['furthest_right'] = True
-            # if leftmost_end == exact_del['del_end']:
-            #     exact_del['furthest_left'] = True
-
-
-
-            tmp = {
-                # Sequence meta-data:
-                'batch_num': batch_num,
-                'total_wells': well_cnt,
-                'Log2 Total Reads in Well': exact_del['log2_total_reads_well'],
-
-                # Exact-Deletion Data
-                'del_start': exact_del['del_start'],
-                'del_end': exact_del['del_end'],
-                'del_length': exact_del['del_end'] - exact_del['del_start'],
-                
-                'Avg_wells_10+log2(frac/(1-frac))': exact_del['Avg_wells_10+log2(frac/(1-frac))'],
-                'Avg_wells_10+log2(group_frac/(1-group_frac))': exact_del['Avg_wells_10+log2(group_frac/(1-group_frac))'],
-                'Left_End_Score': exact_del['left_end_score'],
-                'Right_End_Score': exact_del['right_end_score'],
-                'LL': exact_del['LL'],
-                'LR': exact_del['LR'],
-                'RL': exact_del['RL'],
-                'RR': exact_del['RR'],
-
-                '10bp_before_deletion': exact_del['bases_at_beginning_of_deletion'][40:50],
-                '10bp_into_deletion_start': exact_del['bases_at_beginning_of_deletion'][51:61],
-                '10bp_before_deletion_end': exact_del['bases_at_end_of_deletion'][40:50],
-                '10bp_after_deletion': exact_del['bases_at_end_of_deletion'][51:61],
-                'del_in_x_wells': exact_del['appears_in_x_wells'],
-                # 'similar_to_past_deletion': exact_del['similar_to_past_deletion'],
-                'read_ct': exact_del['read_ct'],
-                'percentage_of_reads': exact_del['percentage_of_reads'],
-                'matching_over_deletion': exact_del['matching_over_deletion'],
-                'left_Single_Match': exact_del['left_matching_score_mismatch_1'],
-                'left_Tail': exact_del['left_matching_score_match_1'],
-                'left-Match_1': exact_del['left_matching_score_mismatch_2'],
-                'left-GC_content_1': exact_del['left_match_group_GC_score_content_1'],
-                'left-Mismatch_1': exact_del['left_matching_score_match_2'],
-                'left-Match_2': exact_del['left_matching_score_mismatch_3'],
-                'left-GC_content_2': exact_del['left_match_group_GC_score_content_2'],
-                'left-Mismatch_2': exact_del['left_matching_score_match_3'],
-                'left-Match_3': exact_del['left_matching_score_mismatch_4'],
-                'left-GC_content_3': exact_del['left_match_group_GC_score_content_3'],
-                'left-Mismatch_3': exact_del['left_matching_score_match_4'],
-                'left-Match_4': exact_del['left_matching_score_mismatch_5'],
-                'left-GC_content_4': exact_del['left_match_group_GC_score_content_4'],
-                'left-Mismatch_4': exact_del['left_matching_score_match_5'],
-                # 'left-Match_5': exact_del['left_matching_score_mismatch_2'],
-                # 'left-GC_content_5': exact_del['left_match_group_GC_score_content_5'],
-                # 'left-Mismatch_5': exact_del['left_matching_score_mismatch_2'],
-
-                'right_Single_Match': exact_del['right_matching_score_mismatch_1'],
-                'right_Tail': exact_del['right_matching_score_match_1'],
-                'right-Match_1': exact_del['right_matching_score_mismatch_2'],
-                'right-GC_content_1': exact_del['right_match_group_GC_score_content_1'],
-                'right-Mismatch_1': exact_del['right_matching_score_match_2'],
-                'right-Match_2': exact_del['right_matching_score_mismatch_3'],
-                'right-GC_content_2': exact_del['right_match_group_GC_score_content_2'],
-                'right-Mismatch_2': exact_del['right_matching_score_match_3'],
-                'right-Match_3': exact_del['right_matching_score_mismatch_4'],
-                'right-GC_content_3': exact_del['right_match_group_GC_score_content_3'],
-                'right-Mismatch_3': exact_del['right_matching_score_match_4'],
-                'right-Match_4': exact_del['right_matching_score_mismatch_5'],
-                'right-GC_content_4': exact_del['right_match_group_GC_score_content_4'],
-                'right-Mismatch_4': exact_del['right_matching_score_match_5'],
-
-                'right_energy': right_energy,
-                'right_offset': right_offset,
-                'left_energy': left_energy,
-                'left_offset': left_offset,
-                'gc_content_frag_start_LR': exact_del['gc_content_frag_start_LR'],
-
-                'longest_repeat': long_rep,
-                'longest_repeat_dist_5prime': fiveprime_offset,
-                'longest_repeat_dist_3prime': threeprime_offset,
-                'longest_repeat_beginning_del_after_del': longest_repeat_beginning_del_after_del,
-                'dist_beg_del-longest_repeat_beginning_del_after_del': repeat_dist_beg_del,
-                'dist_after_del-longest_repeat_beginning_del_after_del': repeat_dist_after_del,
-                'longest_repeat_before_del_end_del': longest_repeat_before_del_end_del,
-                'dist_before_del-longest_repeat_before_del_end_del': repeat_dist_before_del,
-                'dist_end_del-longest_repeat_before_del_end_del': repeat_dist_end_del,
-                'longest_repeat_score': exact_del['longest_repeat_score'],
-                'longest_a-d_ligation_repeat': exact_del['longest_a-d_ligation_repeat'],
-                'within_one_fragment': exact_del['within_one_fragment'],
-                'distance_to_fragment_overhang_5prime': exact_del['distance_to_fragment_overhang_5prime'],
-                'distance_to_fragment_overhang_3prime': exact_del['distance_to_fragment_overhang_3prime'],
-
-                'perfect_sequence_across_deletion': str(exact_del['perfect_sequence_across_deletion']),
-                'energy_longest_repeat_beginning_del_after_del': exact_del['energy_longest_repeat_beginning_del_after_del'],
-                'energy_longest_repeat_before_del_end_del': exact_del['energy_longest_repeat_before_del_end_del'],
-                'Log2_exact_deletion_frequency': exact_del['Log2_exact_deletion'],
-                'Log2_group_deletion_frequency': log2_group_percent#exact_del['Log2_deletion_group_frequency'],
-            }
-
-
-            # Exact deletion secondary structures
-            while len(exact_del['5_prime_hairpins']) < 5:
-                exact_del['5_prime_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''})
-            for b,c in enumerate(exact_del['5_prime_hairpins']):
-                tmp[f'5_prime_hairpins_start_{b}'] = c['start'] 
-                tmp[f'5_prime_hairpins_end_{b}'] = c['end'] 
-                tmp[f'5_prime_hairpins_stem_{b}'] = c['stem']
-                tmp[f'5_prime_hairpins_loop_{b}'] = c['loop']
-                tmp[f'5_prime_hairpins_energy_{b}'] = c['energy']
-            while len(exact_del['5_prime_near_hairpins']) < 5:
-                exact_del['5_prime_near_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''})
-            for b,c in enumerate(exact_del['5_prime_near_hairpins']):
-                tmp[f'5_prime_near_hairpins_start_{b}'] = c['start']
-                tmp[f'5_prime_near_hairpins_end_{b}']=  c['end']
-                tmp[f'5_prime_near_hairpins_stem_{b}'] = c['stem']
-                tmp[f'5_prime_near_hairpins_loop_{b}'] =  c['loop']
-                tmp[f'5_prime_near_hairpins_energy_{b}'] = c['energy']
-                tmp[f'5_prime_near_hairpins_mismatch_count_{b}'] = c['mismatch_count']
-            
-
-            while len(exact_del['3_prime_hairpins']) < 5:
-                exact_del['3_prime_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''})
-            for b,c in enumerate(exact_del['3_prime_hairpins']):
-                tmp[f'3_prime_hairpins_start_{b}'] = c['start'] 
-                tmp[f'3_prime_hairpins_end_{b}'] = c['end'] 
-                tmp[f'3_prime_hairpins_stem_{b}'] = c['stem']
-                tmp[f'3_prime_hairpins_loop_{b}'] = c['loop']
-                tmp[f'3_prime_hairpins_energy_{b}'] = c['energy']
-            while len(exact_del['3_prime_near_hairpins']) < 5:
-                exact_del['3_prime_near_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''})
-            for b,c in enumerate(exact_del['3_prime_near_hairpins']):
-                tmp[f'3_prime_near_hairpins_start_{b}'] = c['start']
-                tmp[f'3_prime_near_hairpins_end_{b}']=  c['end']
-                tmp[f'3_prime_near_hairpins_stem_{b}'] = c['stem']
-                tmp[f'3_prime_near_hairpins_loop_{b}'] =  c['loop']
-                tmp[f'3_prime_near_hairpins_energy_{b}'] = c['energy']
-                tmp[f'3_prime_near_hairpins_mismatch_count_{b}'] = c['mismatch_count']
-
+# Filling in json for secondary structures above^
             #     # Exact deletion secondary structures
             # while len(exact_del['IHFL_hairpins']) < 2:
             #     exact_del['IHFL_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''})
@@ -1267,48 +1543,9 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
             #     tmp[f'PDFR_near_hairpins_energy_{b}'] = c['energy']
             #     tmp[f'PDFR_near_hairpins_mismatch_count_{b}'] = c['mismatch_count']
 
-            while len(exact_del['Overall_hairpins']) < 5:
-                exact_del['Overall_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''})
-            for b,c in enumerate(exact_del['Overall_hairpins']):
-                tmp[f'Overall_hairpins_start_{b}'] = c['start'] 
-                tmp[f'Overall_hairpins_end_{b}'] = c['end'] 
-                tmp[f'Overall_hairpins_stem_{b}'] = c['stem']
-                tmp[f'Overall_hairpins_loop_{b}'] = c['loop']
-                tmp[f'Overall_hairpins_energy_{b}'] = c['energy']
-            while len(exact_del['Overall_near_hairpins']) < 5:
-                exact_del['Overall_near_hairpins'].append({'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''})
-            for b,c in enumerate(exact_del['Overall_near_hairpins']):
-                tmp[f'Overall_near_hairpins_start_{b}'] = c['start']
-                tmp[f'Overall_near_hairpins_end_{b}'] = c['end']
-                tmp[f'Overall_near_hairpins_stem_{b}'] = c['stem']
-                tmp[f'Overall_near_hairpins_loop_{b}'] =  c['loop']
-                tmp[f'Overall_near_hairpins_energy_{b}'] = c['energy']
-                tmp[f'Overall_near_hairpins_mismatch_count_{b}'] = c['mismatch_count']
-            
-            while len(exact_del['Overall_repeats']) < 5:
-                exact_del['Overall_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': ''})
-            for b,c in enumerate(exact_del['Overall_repeats']):
-                tmp[f'Overall_repeats_start_{b}'] = c['start'] 
-                tmp[f'Overall_repeats_end_{b}'] = c['end'] 
-                tmp[f'Overall_repeats_length_{b}'] = c['length']
-                tmp[f'Overall_repeats_energy_{b}'] = c['energy']
-            while len(exact_del['Overall_near_repeats']) < 5:
-                exact_del['Overall_near_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''})
-            for b,c in enumerate(exact_del['Overall_near_repeats']):
-                tmp[f'Overall_near_repeats_start_{b}'] = c['start']
-                tmp[f'Overall_near_repeats_end_{b}'] = c['end']
-                tmp[f'Overall_near_repeats_length_{b}'] = c['length']
-                tmp[f'Overall_near_repeats_energy_{b}'] = c['energy']
-                tmp[f'Overall_near_repeats_mismatch_count_{b}'] = c['mismatch_count']
-            
-            while len(exact_del['Overall_reverse_repeats']) < 5:
-                exact_del['Overall_reverse_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': ''})
-            for b,c in enumerate(exact_del['Overall_reverse_repeats']):
-                tmp[f'Overall_reverse_repeats_start_{b}'] = c['start'] 
-                tmp[f'Overall_reverse_repeats_end_{b}'] = c['end'] 
-                tmp[f'Overall_reverse_repeats_length_{b}'] = c['length']
-                tmp[f'Overall_reverse_repeats_energy_{b}'] = c['energy']
 
+
+# ====== Deletion Group Data =======
                 # # Deletion Group Data
                 # 'group_strt': exact_del['group_start'],
                 # 'group_end': exact_del['group_end'],
@@ -1341,156 +1578,3 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
             #     else:
             #         log2_frag_conc.append(log2(float(fc)))
             # tmp['Log2_fragment_concentrations'] = log2_frag_conc
-            
-            
-            # Left side for dynamic programming
-            tmp['dp_Left_Sequence'] = dpLeftSequence
-            tmp['dp_Left_Energy'] = dpLeftEnergy
-            lim5 = 0
-            for k,v in dpLeftPathDict.items():
-                tmp[f'{k}_LEFT'] = v
-                if k[-1] == '2':
-                    lim5 += 1
-                    if lim5 == 5: break
-            if lim5 < 5:
-                for _ in range(lim5, 5):
-                    tmp[f'length_{_}'] = 0
-                    tmp[f'energy_{_}'] = 0
-                    tmp[f'sequence_{_}'] = ''
-                    tmp[f'gap{_}_d1'] = 0
-                    tmp[f'gap{_}_d2'] = 0
-            
-            # Right side for dynamic programming
-            tmp['dp_Right_Sequence'] = dpRightSequence
-            tmp['dp_Right_Energy'] = dpRightEnergy
-            lim5 = 0
-            for k,v in dpRightPathDict.items():
-                tmp[f'{k}_RIGHT'] = v
-                if k[-1] == '2':
-                    lim5 -= 1
-                    if lim5 == 5: break
-            if lim5 < 5:
-                for _ in range(lim5, 5):
-                    tmp[f'length_{_}'] = 0
-                    tmp[f'energy_{_}'] = 0
-                    tmp[f'sequence_{_}'] = ''
-                    tmp[f'gap{_}_d1'] = 0
-                    tmp[f'gap{_}_d2'] = 0
-            
-            
-            dumpable_data[gene_id][str(exact_del['del_start']) + '-' + str(exact_del['del_end'])] = tmp
-            with open('data/consolidated_top_deletions.json', 'a') as td:
-                json.dump(dumpable_data, td)#save whole dict to save key sequence names
-                td.write(',\n')
-
-
-
-def main():
-    frag_data = Path('data/customer_items_block_quant_alphaprod.csv')
-    frag_id_2_frag_len = get_frag_lengths2(frag_data)
-
-    # instead of getting the st1's from prelive, list them off from alpha prod using
-    # boto3 commands and iterate through those
-    response = s3.list_objects_v2(
-        Bucket=buck,
-        Prefix='static/elegen_csv/st1_csv/'
-    )
-    full_seq_id_2_frag_pass = {}
-    for content in response.get('Contents', []):
-        if content['Key'][-1] == '/' or content['Key'] == 'static/elegen_csv/st1_csv/SVT1-final-qc_18-26-51_08-17-22.csv':#this st1 was eliminated due to misnaming of columns
-            continue
-        print(content['Key'])
-        obj = s3.get_object(Bucket=buck, Key=content['Key'])
-        st1_content = pd.read_csv(obj['Body'])
-        full_seq_id_2_frag_pass.update(get_number_failed_frags(st1_content, frag_id_2_frag_len))
-    print(len(full_seq_id_2_frag_pass))
-
-
-    st_final_file_locations = Path('data/batch_st_final_filename_alphaprod.csv')
-
-    geneid_2_conf = {}
-    conf_batches = set()
-    missing_st_final = 0
-    conf_batch_cnt = 0
-    with st_final_file_locations.open('r') as rd:
-        csv.field_size_limit(sys.maxsize)
-        reader = csv.DictReader(rd)
-        for row in reader:
-            try:
-                obj = s3.get_object(Bucket=buck, Key='static/elegen_csv/st_final_csv/' + row['st_final_filename'])
-                batchname = row['batch_number'].partition('_')[0]
-                date = row['date'].partition(' ')[0]
-                conf_batch_cnt += 1
-            except:
-                missing_st_final += 1
-                continue
-            st_final_content = pd.read_csv(obj['Body'])
-            geneid_2_conf.update(get_conf_data(st_final_content, batchname, date))
-            conf_batches.add(batchname)
-            print(batchname)
-
-    print(len(geneid_2_conf))
-    print("missing: ", missing_st_final)
-    print('batch count: ', conf_batch_cnt)
-
-    # Process the original json
-    error_lines = 0
-    # with open('data/top_deletions_2.3.25_finished.json') as f:
-    # with open('data/top_deletions_5perc_group_2.17_finished.json') as f:
-    with open('data/top_deletions_5perc_group.json') as f:
-        combined_wells = []
-        total_wells = 0
-        gene_in_prev_well = '2078_5_B274-1'
-        broken_datapoints = 0
-        for line in f:
-            try:
-                tmp = ast.literal_eval(line)
-            except:
-                error_lines += 1
-                continue
-            for seq,seq_dels in tmp[0].items():
-                gene_id = seq.rsplit('_', 1)[0]
-                # process deletion groups across all wells for a sequence
-                if gene_id != gene_in_prev_well and gene_in_prev_well:
-                    # process_all_wells(
-                    #     combined_wells,
-                    #     total_wells,
-                    #     gene_in_prev_well,
-                    #     full_seq_id_2_frag_pass[gene_in_prev_well]['sequence'],
-                    # )
-                    try:
-                        process_all_wells(
-                            combined_wells,
-                            total_wells,
-                            gene_in_prev_well,
-                            full_seq_id_2_frag_pass[gene_in_prev_well]['sequence'],
-                        )
-                    except KeyError:
-                        print(seq)
-
-                    combined_wells = []
-                    total_wells = 0
-                    gene_in_prev_well = gene_id
-
-                # tmp_dels = reprocess_well(seq_dels, gene_id, full_seq_id_2_frag_pass[gene_id]['concentrations'])
-                # total_wells += 1
-                # if total_wells == 1:
-                #     combined_wells = [tmp_dels]
-                # else:
-                #     combined_wells.append(tmp_dels)
-                try:
-                    tmp_dels = reprocess_well(seq_dels, gene_id, full_seq_id_2_frag_pass[gene_id]['concentrations'])
-                    total_wells += 1
-                    if total_wells == 1:
-                        combined_wells = [tmp_dels]
-                    else:
-                        combined_wells.append(tmp_dels)
-                except:
-                    broken_datapoints += 1
-                    print('broke: ', broken_datapoints, f' {seq}')
-                    continue
-    
-
-
-if __name__ == '__main__':
-    main()

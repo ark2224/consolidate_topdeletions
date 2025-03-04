@@ -49,7 +49,7 @@ def main():
 
     # Convert into csv
     error_lines = 0
-    with open('data/consolidated_top_deletions_deletable.json') as f:
+    with open('data/consolidated_top_deletions_finished2.27.25.json') as f:
         with open('data/consolidated_top_deletions_csv.csv', 'a') as outf:
 
             # Convert into csv
@@ -69,6 +69,10 @@ def main():
                 'Deletion Start',
                 'Deletion End',
                 'Deletion Length',
+                'Longest Repeat',
+                'Longest Repeat - Distance from 5\' Deletion-End',
+                'Longest Repeat - Distance from 3\' Deletion-End',
+
                 'Average Well 10+log2(frac / (1-frac))',
                 'Average Well 10+log2(group_frac / (1-group_frac))',
                 'Left End Score',
@@ -77,12 +81,15 @@ def main():
                 'LR',
                 'RL',
                 'RR',
-                '10bp Before Deletion',
-                '10bp After Deletion',
+                '10bp Before Deletion Start',
+                '10bp After Deletion Start',
+                '10bp Before Deletion End',
+                '10bp After Deletion End',
 
-                'Deletion Appears in X Wells',
+
+                # 'Deletion Appears in X Wells',
                 # 'Similar to Past Deletion',
-                'Read Count',
+                'Read Count for Exact Deletion',
                 'Percentage of Reads',
                 'Matching Over Deletion',
                 'Left - Single Match',
@@ -128,9 +135,9 @@ def main():
 
 
 
-                'Longest Repeat',
-                'Longest Repeat - Distance from 5\' Deletion-End',
-                'Longest Repeat - Distance from 3\' Deletion-End',
+                # 'Longest Repeat',
+                # 'Longest Repeat - Distance from 5\' Deletion-End',
+                # 'Longest Repeat - Distance from 3\' Deletion-End',
                 'Longest Repeat Beginning Del-after Del',
                 'Distance after Deletion Start',
                 'Distance after Deletion End',
@@ -140,14 +147,15 @@ def main():
                 'Longest Repeat AT-GC Score',
                 'Longest A-B Ligation Repeat',
                 'Within One Fragment',
-                'Distance from Del Beginning to Fragment Overhang',
-                'Distance from Del End to Fragment Overhang',
+                'Distance to Fragment Beginning',
+                'Distance to Fragment End',
+                'Fragment GC Content',
 
                 'Perfect Sequence Across Deletion',
                 'Energy Longest Repeat Beginning Del-after Del',
                 'Energy Longest Repeat Before Del-End Del',
                 'Log2 Exact Deletion Frequency',
-                'Log2 Deletion Group Frequency',
+                # 'Log2 Deletion Group Frequency',
 
                 # # Exact deletion secondary structures
                 '5_prime_hairpin_start-1',
@@ -572,18 +580,18 @@ def main():
                 tmprow.extend([
                     f'Match{_} Len - Left',
                     f'Match{_} Energy - Left',
-                    f'Match{_} Sequence - Left'
+                    f'Match{_} Sequence - Left',
                     f'Gap{_} D1 - Left',
-                    f'Gap{_} D2 - Left'
+                    f'Gap{_} D2 - Left',
                 ])
             tmprow.extend(['DP Right Sequence', 'DP Right Energy'])
             for _ in range(5):
                 tmprow.extend([
                     f'Match{_} Len - Right',
                     f'Match{_} Energy - Right',
-                    f'Match{_} Sequence - Right'
+                    f'Match{_} Sequence - Right',
                     f'Gap{_} D1 - Right',
-                    f'Gap{_} D2 - Right'
+                    f'Gap{_} D2 - Right',
                 ])
             writer.writerow(tmprow)
             for line in f:
@@ -594,8 +602,7 @@ def main():
                 for seq,seq_dels in tmp[0].items():
                     for coordinates,data_fields in seq_dels.items():
                         seq_coor = str(seq) + str(coordinates)
-                        if seq_coor in completed_genes:
-                            repeats += 1
+                        if seq_coor in completed_genes or data_fields['batch_num'] not in conf_batches:
                             continue
                         # try:
                         completed_genes.add(seq_coor)
@@ -603,14 +610,16 @@ def main():
                             continue
 
                         conf_idx = seq + '_' + data_fields['batch_num']
-                        # print(conf_idx)
                         if conf_idx not in geneid_2_conf:
                             passing_dial_out = 0
                         else:
                             passing_dial_out = int(geneid_2_conf[conf_idx]['wells_passing'] > 0)
 
 
-                        tmprow = [seq, coordinates, passing_dial_out]
+                        tmprow = [seq,
+                                  coordinates,
+                                  passing_dial_out,
+                                  ]
                         for k,v in data_fields.items():
                             if k == 'within_one_fragment':
                                 tmprow.append(1 if v else 0)
@@ -622,9 +631,14 @@ def main():
                                 for conc in frag_conc:
                                     tmprow.append(conc)
                             elif k == 'Log2_group_deletion_frequency':
-                                tmprow.append(max(v, -15))
+                                # tmprow.append(max(v, -15))
+                                continue
+                            elif k == 'del_in_x_wells':
+                                continue
                             else:
                                 tmprow.append(v)
+                        writer.writerow(tmprow)
+    print(error_lines)
                         # tmprow = [
                         #     seq, 
                         #     coordinates,
@@ -933,8 +947,7 @@ def main():
                         #     data_fields['Log2_fragment_concentrations'],
                         # ]
 
-                        writer.writerow(tmprow)
-    print(error_lines)
+
 
 
 
