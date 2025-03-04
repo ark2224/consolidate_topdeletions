@@ -243,6 +243,31 @@ def top_5_longest_common_substrings(S, T):
     return lcs_list[:5]
 
 
+def palindromeSubStrs(s):
+    revcomp = {
+        'A': 'T',
+        'T': 'A',
+        'C': 'G',
+        'G': 'C'
+    }
+    n = len(s)
+    dp = [[False] * n for _ in range(n)]
+    distinct_palindromes = set()
+    for gap in range(n):
+        for i in range(n - gap):
+            j = i + gap
+            if gap == 0:
+                dp[i][j] = True
+            elif gap == 1:
+                dp[i][j] = revcomp[s[i]] == s[j]
+            else:
+                dp[i][j] = revcomp[s[i]] == s[j] and dp[i + 1][j - 1]
+
+            if dp[i][j]:
+                distinct_palindromes.add(s[i:j + 1])
+    return distinct_palindromes
+
+
 def reprocess_well(seq_dels: dict, gene_batch_id: str, frag_conc):
     deletion_groups = []#[[[list of strts for group], [list of ends for group], group_percent_of_reads]]
     errorneous_deletions = set()
@@ -786,71 +811,71 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
 
             # === Secondary Structures ===
             # +/-100bp around LR:
-            lr100_hairpins = find_only_hairpins(seq[ds+lR-100:ds+lR+100])
+            lr100_hairpins = find_only_hairpins(seq[ds+lR-120:ds+lR+120])
             if len(lr100_hairpins):
                 sec_struct_2_keep = {}
                 for k,v in lr100_hairpins.items():
                     sec_struct_2_keep[k] = []
                     for strukt in v[:5]:
                         sec_struct_2_keep[k].append(strukt)
-                exact_del['5_prime_hairpins'] = change_hairpin_notation(sec_struct_2_keep['hairpins'], 100)
-                exact_del['5_prime_near_hairpins'] = change_hairpin_notation(sec_struct_2_keep['near_hairpins'], 100)
+                exact_del['5_prime_hairpins'] = change_hairpin_notation(sec_struct_2_keep['hairpins'], 120)
+                exact_del['5_prime_near_hairpins'] = change_hairpin_notation(sec_struct_2_keep['near_hairpins'], 120)
             else:
                 exact_del['5_prime_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''}]
                 exact_del['5_prime_near_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''}]
 
-            lr100_repeats = find_only_repeats(seq[ds+lR-100:ds+lR+100])
+            lr100_repeats = find_only_repeats(seq[ds+lR-120:ds+lR+120])
             if len(lr100_repeats):
                 sec_struct_2_keep = {}
                 for k,v in lr100_repeats.items():
                     sec_struct_2_keep[k] = []
                     for strukt in v[:5]:
                         sec_struct_2_keep[k].append(strukt)
-                exact_del['5_prime_repeats'] = change_repeat_notation(sec_struct_2_keep['repeats'], 100)
-                exact_del['5_prime_near_repeats'] = change_repeat_notation(sec_struct_2_keep['near_repeats'], 100)
+                exact_del['5_prime_repeats'] = change_repeat_notation(sec_struct_2_keep['repeats'], 120)
+                exact_del['5_prime_near_repeats'] = change_repeat_notation(sec_struct_2_keep['near_repeats'], 120)
             else:
                 exact_del['5_prime_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
                 exact_del['5_prime_near_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''}]
 
 
             # +/-100bp around RL:
-            rl100_hairpins = find_only_hairpins(seq[de-lR-100:de-lR+100])
+            rl100_hairpins = find_only_hairpins(seq[de-lR-120:de-lR+120])
             if len(rl100_hairpins):
                 sec_struct_2_keep = {}
                 for k,v in rl100_hairpins.items():
                     sec_struct_2_keep[k] = []
                     for strukt in v[:5]:
                         sec_struct_2_keep[k].append(strukt)
-                exact_del['3_prime_hairpins'] = change_hairpin_notation(sec_struct_2_keep['hairpins'], 100, -1)
-                exact_del['3_prime_near_hairpins'] = change_hairpin_notation(sec_struct_2_keep['near_hairpins'], 100, -1)
+                exact_del['3_prime_hairpins'] = change_hairpin_notation(sec_struct_2_keep['hairpins'], 120, -1)
+                exact_del['3_prime_near_hairpins'] = change_hairpin_notation(sec_struct_2_keep['near_hairpins'], 120, -1)
             else:
                 exact_del['3_prime_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': ''}]
                 exact_del['3_prime_near_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''}]
 
-            rl100_repeats = find_only_repeats(seq[de-lR-100:de-lR+100])
+            rl100_repeats = find_only_repeats(seq[de-lR-120:de-lR+120])
             if len(rl100_repeats):
                 sec_struct_2_keep = {}
                 for k,v in rl100_repeats.items():
                     sec_struct_2_keep[k] = []
                     for strukt in v[:5]:
                         sec_struct_2_keep[k].append(strukt)
-                exact_del['3_prime_repeats'] = change_repeat_notation(sec_struct_2_keep['repeats'], 100, -1)
-                exact_del['3_prime_near_repeats'] = change_repeat_notation(sec_struct_2_keep['near_repeats'], 100, -1)
+                exact_del['3_prime_repeats'] = change_repeat_notation(sec_struct_2_keep['repeats'], 120, -1)
+                exact_del['3_prime_near_repeats'] = change_repeat_notation(sec_struct_2_keep['near_repeats'], 120, -1)
             else:
                 exact_del['3_prime_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
                 exact_del['3_prime_near_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': '', 'mismatch_count': ''}]
 
             # OVERALL SECONDARY STRUCTURES
-            overall_hairpins = find_only_hairpins(seq[ds-100:de+100])
+            overall_hairpins = find_only_hairpins(seq[ds-50:de+50])
             if len(overall_hairpins):
                 sec_struct_2_keep = {}
                 for k,v in overall_hairpins.items():
                     sec_struct_2_keep[k] = []
                     top5limit = 5
                     for strukt in v:
-                        if (strukt['positions'][0] < 100+lR and 100+lR-strukt['positions'][0] < strukt['length']/2) or ((strukt['positions'][1] + strukt['length'] > 100+de-ds-rL) and ((strukt['positions'][1]+strukt['length']) - (100+de-ds-rL) < strukt['length']/2)):
-                            strukt['positions'][0] -= (100+lR)
-                            strukt['positions'][1] -= (100+de-ds-rL)
+                        if (strukt['positions'][0] < 50+lR and 50+lR-strukt['positions'][0] < strukt['length']/2) or ((strukt['positions'][1] + strukt['length'] > 50+de-ds-rL) and ((strukt['positions'][1]+strukt['length']) - (50+de-ds-rL) < strukt['length']/2)):
+                            strukt['positions'][0] -= (50+lR)
+                            strukt['positions'][1] -= (50+de-ds-rL)
                             strukt['positions'][1] *= -1
                             ov_hp = {
                                 'start': strukt['positions'][0],
@@ -872,13 +897,13 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
                 exact_del['Overall_near_hairpins'] = [{'start': '', 'end': '', 'stem': '', 'loop': '', 'energy': '', 'mismatch_count': ''}]
 
             # overall repeats
-            overall_reps = find_only_repeats(seq[ds-lL-100:de+rR+100])
+            overall_reps = find_only_repeats(seq[ds-lL-50:de+rR+50])
             if len(overall_reps):
                 for k,v in overall_reps.items():
                     sec_struct_2_keep[k] = []
                     for strukt in v[:5]:
-                            strukt['positions'][0] -= (100+lR)
-                            strukt['positions'][1] -= (100+de-ds-rL)
+                            strukt['positions'][0] -= (50+lR)
+                            strukt['positions'][1] -= (50+de-ds-rL)
                             strukt['positions'][1] *= -1
                             ov_rp = {
                                 'start': strukt['positions'][0],
@@ -897,27 +922,25 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
 
 
             # ================================================== REVERSE REPEATS ==================================================
-            overall_reverse_reps = top_5_longest_common_substrings(seq[ds-100+lR:de+100-rL], seq[ds-100+lR:de+100-rL:-1])
+            # overall_reverse_reps = top_5_longest_common_substrings(seq[ds-100+lR:de+100-rL], seq[ds-100+lR:de+100-rL:-1])
+            srch_window = seq[ds-100+lR:de+100-rL]
+            palindromes = palindromeSubStrs(srch_window)
+            overall_reverse_reps = []
+            for p in palindromes:
+                overall_reverse_reps.append({
+                    'start': srch_window.find(p),
+                    'length': len(p),
+                    'energy': ATGC_energy(p)
+                })
+            overall_reverse_reps = sorted(overall_reverse_reps, key=lambda x: x['energy'])
             if len(overall_reverse_reps):
-                sec_struct_2_keep = []
-                for (revrep, atgc_score) in overall_reverse_reps:
-                    # check if reverse repeat or forward repeat 
-                    idx1_1 = seq[ds-100+lR:de+100-rL].find(revrep) - 100 - lR
-                    idx1_2 = seq[ds-100+lR:de+100-rL].find(revrep[::-1]) - 100 - lR
-                    idx2_1 = seq[ds-100+lR:de+100-rL:-1].find(revrep) - 100 - rL
-                    idx2_2 = seq[ds-100+lR:de+100-rL:-1].find(revrep[::-1]) - 100 - rL
-                    sec_struct_2_keep.append({
-                        'start': min(idx1_1,idx1_2),
-                        'end': min(idx2_1,idx2_2),
-                        'length': len(revrep),
-                        'energy': atgc_score
-                    })
+                sec_struct_2_keep = overall_reverse_reps[:5]
                 exact_del['Overall_reverse_repeats'] = sec_struct_2_keep
             else:
-                exact_del['Overall_reverse_repeats'] = [{'start': '', 'end': '', 'length': '', 'energy': ''}]
+                exact_del['Overall_reverse_repeats'] = [{'start': '', 'length': '', 'energy': ''}]
             
-            # checking for secondary structures in fragment ends if deletion is over 150bp away from ends
-            if ds - fs >= 150 and fe - de >= 150:
+            # checking for secondary structures in fragment ends if deletion is over 170bp away from ends
+            if ds - fs >= 170 and fe - de >= 170:
                 fragment_start_reps = find_only_repeats(seq[fs:fs+100])
                 if len(fragment_start_reps):
                     sec_struct_2_keep = {}
@@ -1194,10 +1217,9 @@ def process_all_wells(cw: dict, well_cnt: int, gene_batch_id: str, seq: str):
 
 
             while len(exact_del['Overall_reverse_repeats']) < 5:
-                exact_del['Overall_reverse_repeats'].append({'start': '', 'end': '', 'length': '', 'energy': ''})
+                exact_del['Overall_reverse_repeats'].append({'start': '', 'length': '', 'energy': ''})
             for b,c in enumerate(exact_del['Overall_reverse_repeats']):
                 tmp[f'Overall_reverse_repeats_start_{b}'] = c['start'] 
-                tmp[f'Overall_reverse_repeats_end_{b}'] = c['end'] 
                 tmp[f'Overall_reverse_repeats_length_{b}'] = c['length']
                 tmp[f'Overall_reverse_repeats_energy_{b}'] = c['energy']         
 
