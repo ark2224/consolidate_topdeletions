@@ -18,13 +18,11 @@ def longest_common_substring(s1, s2):
     end = 0
     dist5 = 0
     dist3 = 0
-
     for i in range(1, m + 1):
         for j in range(1, n + 1):
             # ensuring it's off the exact alignment
             if i == j:
                 continue
-
             if s1[i - 1] == s2[j - 1]:
                 dp[i][j] = dp[i - 1][j - 1] + 1
                 if dp[i][j] > max_length:
@@ -34,7 +32,6 @@ def longest_common_substring(s1, s2):
                     dist3 = j - max_length
             else:
                 dp[i][j] = 0
-
     # Extract the longest common substring
     return s1[end - max_length + 1: end + 1], dist5, dist3
 
@@ -57,7 +54,6 @@ def lcs(S, T):
     counter = [[0] * (n + 1) for _ in range(m + 1)]
     longest = 0
     lcs_set = set()
-    
     for i in range(m):
         for j in range(n):
             if S[i] == T[j]:
@@ -82,7 +78,6 @@ def top_5_longest_common_substrings(S, T):
     return lcs_list[:5]
 
 
-
 def ATGC_secondary_structures(s1: str, s2: str, loop_len = 0, mismatch_penalty= 0.5) -> float:
     i1,i2 = 0,0
     score = 0
@@ -96,10 +91,10 @@ def ATGC_secondary_structures(s1: str, s2: str, loop_len = 0, mismatch_penalty= 
             score -= mismatch_penalty
         i1 += 1
         i2 += 1
-
     if loop_len > 3:
         score -= mismatch_penalty*(loop_len-3)
     return score
+
 
 def rev_comp(seq: str):
     revs = {
@@ -209,7 +204,6 @@ def fix_energy_score(matching_over_deletion: str, mismatch_penalty=0.5):
             if not_found_matching:
                 right_offset += 1
         right_energy = max(right_energy, current_score)
-
     left_offset, left_energy, current_score = 0, 0, 0
     not_found_matching = True
     if right_offset == 0:
@@ -267,9 +261,6 @@ def find_only_hairpins(del_segment: str) -> dict:
         # print(del_segment, len(del_segment))
         # print("HAIRPIN ERROR. Segment Length: ", len(del_segment))
         return {}
-
-    # repeats, hairpins, near_repeats, near_hairpins = [], [], [], []
-    # ToDo: calculate energies and re-order them
     return {
         'hairpins': hairpins,
         'near_hairpins': near_hairpins
@@ -313,10 +304,8 @@ def change_hairpin_notation(hr: dict, origin=0, invert=1):
 def longest_substring(s1, s2) -> str:
     # Create a SequenceMatcher object with the two strings
     seq_match = SequenceMatcher(None, s1, s2)
-
     # Find the longest matching substring
     match = seq_match.find_longest_match(0, len(s1), 0, len(s2))
-
     # If a match is found, return the substring
     if match.size != 0:
         return s1[match.a: match.a + match.size]

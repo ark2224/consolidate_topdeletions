@@ -333,7 +333,8 @@ fn gen_match_array(sseq: String, squery: String, pm: &PyArray2<u8>) -> PyResult<
 fn find_near_repeats(sequence: &str) -> PyResult<Vec<HashMap<&str, i32>>> {
     let seed = 6;
     let gap_max = 2;
-    let min_length = 10;
+    // let min_length = 10;
+    let min_length = 8;// 3.4.25
     let window = 10;
     let tolerance = 2;
     let repeat_log = near_repeat_log(

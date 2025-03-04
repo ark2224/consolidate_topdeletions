@@ -126,10 +126,11 @@ def main():
                 print(type(sam))
                 try:
                     obj = s3.get_object(Bucket='bfx-prod', Key=f'rnd/new_alignment_algorithm_results/A2_B2_O2,40_E2_endbonus50/{k}_{gene_count[gene_id]}.sam')
+                    with open(f'{k}_{gene_count[gene_id]}.sam', 'wb') as outf:
+                        shutil.copyfileobj(obj['Body'], outf)
                 except:
                     continue
-                with open(f'{k}_{gene_count[gene_id]}.sam', 'wb') as outf:
-                        shutil.copyfileobj(obj['Body'], outf)
+                
                 # obj = s3.get_object(Bucket='bfx-prod', Key=sam)
                 # with gzip.GzipFile(fileobj=obj['Body'], mode='rb') as gz_file:
                 #     with open('tmpfile.sam', 'wb') as outf:
@@ -229,8 +230,6 @@ def main():
                     os.remove(f'{k}_{gene_count[gene_id]}.sam')
                     # os.remove('tmp_file.fasta')
                     # os.remove('tmp_file.fastq')
-
-
 
 
 
