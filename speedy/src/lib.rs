@@ -206,9 +206,9 @@ fn rust_find_hairpins(sseq: String) -> Option<HashMap<usize, Vec<Vec<usize>>>> {
 
     // variables
     // let threshold_stem: usize = 8;
-    // let threshold_stem: usize = 5;//2.25.25 settings trying to find smallest hairpins of stem len 2 - Drew
+    let threshold_stem: usize = 5;//2.25.25 settings trying to find smallest hairpins of stem len 2 - Drew
     // let threshold_stem: usize = 2;//2.25.25 settings trying to find smallest hairpins of stem len 2 - Drew
-    let threshold_stem: usize = 4;//3.3.25 settings trying to find smallest hairpins of stem len 3 - Drew
+    // let threshold_stem: usize = 4;//3.3.25 settings trying to find smallest hairpins of stem len 3 - Drew
 
     if seq.len() < threshold_stem * 2 {
         return None;

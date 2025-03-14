@@ -20,7 +20,6 @@ def main():
         while True:
             # decrease the maxInt value by factor 10 
             # as long as the OverflowError occurs.
-
             try:
                 csv.field_size_limit(maxInt)
                 break
@@ -49,14 +48,25 @@ def main():
 
     # Convert into csv
     error_lines = 0
-    with open('data/consolidated_top_deletions_finished2.27.25.json') as f:
-        with open('data/consolidated_top_deletions_csv.csv', 'a') as outf:
+    # with open('data/consolidated_top_deletions_finished_3.7.25.json') as f:
+    # with open('data/consolidated_top_deletions_complete_3.9.25.json') as f:
+    # with open('data/consolidated_top_deletions_3.10.25_complete.json') as f:
+    # with open('data/consolidated_top_deletions.json') as f:
+    # with open('data/consolidated_top_deletions_fixedlongrange.json') as f:
+    with open('data/consolidated_top_deletions_deletable.json') as f:
+        # json_str = f.read()
+        # json_data = json.loads(json_str)[0]
+        # df = pd.DataFrame.from_dict(json_data)
+        with open('data/consolidated_top_deletions_csv.csv', 'a', newline='') as outf:
+            # df.to_csv(outf)
+            # return
 
             # Convert into csv
             error_lines = 0
             completed_genes = set()
-            repeats = 0
             writer = csv.writer(outf)
+
+            # Creating Title
             tmprow = [
                 'Sequence ID',
                 'Coordinates',
@@ -69,6 +79,7 @@ def main():
                 'Deletion Start',
                 'Deletion End',
                 'Deletion Length',
+                'Fragment is Element',
                 'Longest Repeat',
                 'Longest Repeat - Distance from 5\' Deletion-End',
                 'Longest Repeat - Distance from 3\' Deletion-End',
@@ -85,12 +96,17 @@ def main():
                 '10bp After Deletion Start',
                 '10bp Before Deletion End',
                 '10bp After Deletion End',
+            ]
+            for hand in ['right_of_LL', 'left_of_RL']:
+                for i in range(10):
+                    tmprow.append(f'{i}_{hand}')
 
-
+            tmprow.extend([
                 # 'Deletion Appears in X Wells',
                 # 'Similar to Past Deletion',
                 'Read Count for Exact Deletion',
                 'Percentage of Reads',
+
                 'Matching Over Deletion',
                 'Left - Single Match',
                 'Left - Tail',
@@ -106,9 +122,7 @@ def main():
                 'Left - Fourth Match',
                 'Left - Fourth GC',
                 'Left - Fourth Gap',
-                # 'Left - Fifth Match',
-                # 'Left - Fifth GC',
-                # 'Left - Fifth Gap',
+
                 'Right - Single Match',
                 'Right - Tail',
                 'Right - First Match',
@@ -123,9 +137,6 @@ def main():
                 'Right - Fourth Match',
                 'Right - Fourth GC',
                 'Right - Fourth Gap',
-                # 'Right - Fifth Match',
-                # 'Right - Fifth GC',
-                # 'Right - Fifth Gap',
 
                 'Right Energy',
                 'Right Offset',
@@ -133,17 +144,14 @@ def main():
                 'Left Offset',
                 'GC Content between fragment overhang - LR',
 
-
-
-                # 'Longest Repeat',
-                # 'Longest Repeat - Distance from 5\' Deletion-End',
-                # 'Longest Repeat - Distance from 3\' Deletion-End',
                 'Longest Repeat Beginning Del-after Del',
                 'Distance after Deletion Start',
                 'Distance after Deletion End',
+
                 'Longest Repeat Before Del-End Del',
                 'Distance Before Deletion Start',
                 'Distance Before Deletion End',
+                
                 'Longest Repeat AT-GC Score',
                 'Longest A-B Ligation Repeat',
                 'Within One Fragment',
@@ -157,141 +165,319 @@ def main():
                 'Log2 Exact Deletion Frequency',
                 # 'Log2 Deletion Group Frequency',
 
-                # # Exact deletion secondary structures
-                '5_prime_hairpin_start-1',
-                '5_prime_hairpin_end-1',
-                '5_prime_hairpin_stem-1',
-                '5_prime_hairpin_loop-1',
-                '5_prime_hairpin_energy-1',
+                # 'Deletion Group Start',
+                # 'Deletion Group End',
+                # 'Log2 Deletion Group Frequency',
+                # 'Log2 Not in Spanning Del Group Frequency',
+                # 'Furthest Right',
+                # 'Furthest Left',
+                # 'Group Repeats',
+                # 'Group Near Repeats',
+                # 'Group Hairpins',
+                # 'Group Near Hairpins',
+                
+                # 'Group Start - Well Avg',
+                # 'Group End - Well Avg',
+                # 'Group Repeats - Well Avg',
+                # 'Group Near Repeats - Well Avg',
+                # 'Group Hairpins - Well Avg',
+                # 'Group Near Hairpins - Well Avg',
 
-                '5_prime_hairpin_start-2',
-                '5_prime_hairpin_end-2',
-                '5_prime_hairpin_stem-2',
-                '5_prime_hairpin_loop-2',
-                '5_prime_hairpin_energy-2',
+                # REMOVED FRAGMENT CONCENTRATION TEMPORARILY
+                # 'Total Fragment Count',
+                # 'Log 2 Fragment Concentrations',
+            ])
+            for cat in [
+                '5_prime',
+                '3_prime',
+                'Overall',
+                'fragment_start',
+                'fragment_end'
+            ]:
+                for s in [
+                    'hairpins',
+                    'near_hairpins',
+                    'repeats',
+                    'near_repeats', 
+                    'mirrors',
+                    'complements'
+                ]:
+                    for i in range(5):
+                        tmprow.append(f'{cat}_{s}_start-{i}')
+                        tmprow.append(f'{cat}_{s}_end-{i}')
+                        if s[-4:] == 'pins':
+                            tmprow.append(f'{cat}_{s}_stem-{i}')
+                            tmprow.append(f'{cat}_{s}_loop-{i}')
+                        else:
+                            tmprow.append(f'{cat}_{s}_length-{i}')
+                        tmprow.append(f'{cat}_{s}_energy-{i}')
+                        tmprow.append(f'{cat}_{s}_sequence-{i}')
+                        if s[:4] == 'near':
+                            tmprow.append(f'{cat}_{s}_mismatch_count-{i}')
 
-
-                '5_prime_hairpin_start-3',
-                '5_prime_hairpin_end-3',
-                '5_prime_hairpin_stem-3',
-                '5_prime_hairpin_loop-3',
-                '5_prime_hairpin_energy-3',
-
-                '5_prime_hairpin_start-4',
-                '5_prime_hairpin_end-4',
-                '5_prime_hairpin_stem-4',
-                '5_prime_hairpin_loop-4',
-                '5_prime_hairpin_energy-4',
-
-                '5_prime_hairpin_start-5',
-                '5_prime_hairpin_end-5',
-                '5_prime_hairpin_stem-5',
-                '5_prime_hairpin_loop-5',
-                '5_prime_hairpin_energy-5',
-
-
-                '5_prime_near_hairpin_start-1',
-                '5_prime_near_hairpin_end-1',
-                '5_prime_near_hairpin_stem-1',
-                '5_prime_near_hairpin_loop-1',
-                '5_prime_near_hairpin_energy-1',
-                '5_prime_near_hairpin_mismatch_count-1',
-
-                '5_prime_near_hairpin_start-2',
-                '5_prime_near_hairpin_end-2',
-                '5_prime_near_hairpin_stem-2',
-                '5_prime_near_hairpin_loop-2',
-                '5_prime_near_hairpin_energy-2',
-                '5_prime_near_hairpin_mismatch_count-2',
-
-                '5_prime_near_hairpin_start-3',
-                '5_prime_near_hairpin_end-3',
-                '5_prime_near_hairpin_stem-3',
-                '5_prime_near_hairpin_loop-3',
-                '5_prime_near_hairpin_energy-3',
-                '5_prime_near_hairpin_mismatch_count-3',
-
-                '5_prime_near_hairpin_start-4',
-                '5_prime_near_hairpin_end-4',
-                '5_prime_near_hairpin_stem-4',
-                '5_prime_near_hairpin_loop-4',
-                '5_prime_near_hairpin_energy-4',
-                '5_prime_near_hairpin_mismatch_count-4',
-
-                '5_prime_near_hairpin_start-5',
-                '5_primenear_hairpin_end-5',
-                '5_prime_near_hairpin_stem-5',
-                '5_prime_near_hairpin_loop-5',
-                '5_prime_near_hairpin_energy-5',
-                '5_prime_near_hairpin_mismatch_count-5',
-
-
-                '3_prime_hairpin_start-1',
-                '3_prime_hairpin_end-1',
-                '3_prime_hairpin_stem-1',
-                '3_prime_hairpin_loop-1',
-                '3_prime_hairpin_energy-1',
-
-                '3_prime_hairpin_start-2',
-                '3_prime_hairpin_end-2',
-                '3_prime_hairpin_stem-2',
-                '3_prime_hairpin_loop-2',
-                '3_prime_hairpin_energy-2',
-
-
-                '3_prime_hairpin_start-3',
-                '3_prime_hairpin_end-3',
-                '3_prime_hairpin_stem-3',
-                '3_prime_hairpin_loop-3',
-                '3_prime_hairpin_energy-3',
-
-                '3_prime_hairpin_start-4',
-                '3_prime_hairpin_end-4',
-                '3_prime_hairpin_stem-4',
-                '3_prime_hairpin_loop-4',
-                '3_prime_hairpin_energy-4',
-
-                '3_prime_hairpin_start-5',
-                '3_prime_hairpin_end-5',
-                '3_prime_hairpin_stem-5',
-                '3_prime_hairpin_loop-5',
-                '3_prime_hairpin_energy-5',
+            for cat in [
+                'long_range_straddling_5_prime',
+                'long_range_3_prime',
+                'long_range_5_3_prime'
+            ]:
+                for s in ['hairpins', 'near_hairpins']:
+                    for i in range(2):
+                        tmprow.append(f'{cat}_{s}_start-{i}')
+                        tmprow.append(f'{cat}_{s}_end-{i}')
+                        tmprow.append(f'{cat}_{s}_stem-{i}')
+                        tmprow.append(f'{cat}_{s}_loop-{i}')
+                        tmprow.append(f'{cat}_{s}_energy-{i}')
+                        tmprow.append(f'{cat}_{s}_sequence-{i}')
+                        if s[:4] == 'near':
+                            tmprow.append(f'{cat}_{s}_mismatch_count-{i}')
+            for cat in [
+                'long_range_before_5prime',
+                'long_range_after_5prime'
+            ]:
+                for s in ['hairpins', 'near_hairpins']:
+                    for i in range(5):
+                        tmprow.append(f'{cat}_{s}_start-{i}')
+                        tmprow.append(f'{cat}_{s}_end-{i}')
+                        tmprow.append(f'{cat}_{s}_stem-{i}')
+                        tmprow.append(f'{cat}_{s}_loop-{i}')
+                        tmprow.append(f'{cat}_{s}_energy-{i}')
+                        tmprow.append(f'{cat}_{s}_sequence-{i}')
+                        if s[:4] == 'near':
+                            tmprow.append(f'{cat}_{s}_mismatch_count-{i}')
 
 
-                '3_prime_near_hairpin_start-1',
-                '3_prime_near_hairpin_end-1',
-                '3_prime_near_hairpin_stem-1',
-                '3_prime_near_hairpin_loop-1',
-                '3_prime_near_hairpin_energy-1',
-                '3_prime_near_hairpin_mismatch_count-1',
+            tmprow.extend(['DP Left Sequence', 'DP Left Energy'])
+            for _ in range(5):
+                tmprow.extend([
+                    f'Match{_} Len - Left',
+                    f'Match{_} Energy - Left',
+                    f'Match{_} Sequence - Left',
+                    f'Gap{_} D1 - Left',
+                    f'Gap{_} D2 - Left',
+                ])
+            tmprow.extend(['DP Right Sequence', 'DP Right Energy'])
+            for _ in range(5):
+                tmprow.extend([
+                    f'Match{_} Len - Right',
+                    f'Match{_} Energy - Right',
+                    f'Match{_} Sequence - Right',
+                    f'Gap{_} D1 - Right',
+                    f'Gap{_} D2 - Right',
+                ])
+            writer.writerow(tmprow)
 
-                '3_prime_near_hairpin_start-2',
-                '3_prime_near_hairpin_end-2',
-                '3_prime_near_hairpin_stem-2',
-                '3_prime_near_hairpin_loop-2',
-                '3_prime_near_hairpin_energy-2',
-                '3_prime_near_hairpin_mismatch_count-2',
+            # Trying to weed out "redundant eblocks" and "redundant deletions" as to not bias data
+            redundant_deletions_eblocks = set()
+            examples_of_redundancy = set()
+            for line in f:
+                tmp = ast.literal_eval(line)
+                if not len(tmp[0]):
+                    print('here')
+                    continue
+                for seq,seq_dels in tmp[0].items():
+                    # Frequently Repeated Sequences
+                    if str(seq[:4]) in {'2013', '1627', '1835', '1833', '1723', '2073', '1759', '2117', '1668', '1625', '1804'}:
+                        continue
 
-                '3_prime_near_hairpin_start-3',
-                '3_prime_near_hairpin_end-3',
-                '3_prime_near_hairpin_stem-3',
-                '3_prime_near_hairpin_loop-3',
-                '3_prime_near_hairpin_energy-3',
-                '3_prime_near_hairpin_mismatch_count-3',
+                    for coordinates,data_fields in seq_dels.items():
+                        # Criteria for not including sequences (repeats, redundancy, etc...)
+                        seq_coor = str(seq) + str(coordinates)
+                        if seq_coor in completed_genes or data_fields['batch_num'] not in conf_batches:
+                            continue
+                        completed_genes.add(seq_coor)
+                        if data_fields['within_one_fragment'] == 'False':
+                            continue
+                        eb = (
+                            str(data_fields['matching_over_deletion']) +
+                            '_' + str(data_fields['LL']) +
+                            '_' + str(data_fields['LR']) +
+                            '_' + str(data_fields['RL']) +
+                            '_' + str(data_fields['RR']) +
+                            '_' + str(data_fields['10bp_before_LL_deletion']) +
+                            '_' + str(data_fields['10bp_after_RL_deletion_end'])
+                        )
+                        if eb in redundant_deletions_eblocks:
+                            examples_of_redundancy.add((seq_coor, data_fields['batch_num'], eb))
+                            continue
+                        redundant_deletions_eblocks.add(eb)
 
-                '3_prime_near_hairpin_start-4',
-                '3_prime_near_hairpin_end-4',
-                '3_prime_near_hairpin_stem-4',
-                '3_prime_near_hairpin_loop-4',
-                '3_prime_near_hairpin_energy-4',
-                '3_prime_near_hairpin_mismatch_count-4',
+                        # Getting Confirmation Pass datapoint
+                        conf_idx = seq + '_' + data_fields['batch_num']
+                        if conf_idx not in geneid_2_conf:
+                            passing_dial_out = 0
+                        else:
+                            passing_dial_out = int(geneid_2_conf[conf_idx]['wells_passing'] > 0)
+                        tmprow = [
+                            seq,
+                            coordinates,
+                            passing_dial_out,
+                        ]
+                        for k,v in data_fields.items():
+                            if k == 'within_one_fragment':
+                                tmprow.append(1 if v else 0)
+                            elif k == 'perfect_sequence_across_deletion':
+                                tmprow.append(1 if v else 0)
+                            elif k == 'Log2_fragment_concentrations':
+                                frag_conc = ast.literal_eval(str(v))
+                                tmprow.append(len(frag_conc))
+                                for conc in frag_conc:
+                                    tmprow.append(conc)
+                            elif k == 'Log2_group_deletion_frequency':
+                                continue
+                            elif k == 'del_in_x_wells':
+                                continue
+                            # elif 'mirrors' in k or 'complements' in k:
+                            #     continue
+                            else:
+                                tmprow.append(v)
+                        writer.writerow(tmprow)
+    print(error_lines)
 
-                '3_prime_near_hairpin_start-5',
-                '3_primenear_hairpin_end-5',
-                '3_prime_near_hairpin_stem-5',
-                '3_prime_near_hairpin_loop-5',
-                '3_prime_near_hairpin_energy-5',
-                '3_prime_near_hairpin_mismatch_count-5',
+
+if __name__ == '__main__':
+    main()
+
+
+# Scratchwork for titling the csv:
+                # # # Exact deletion secondary structures
+                # '5_prime_hairpin_start-1',
+                # '5_prime_hairpin_end-1',
+                # '5_prime_hairpin_stem-1',
+                # '5_prime_hairpin_loop-1',
+                # '5_prime_hairpin_energy-1',
+
+                # '5_prime_hairpin_start-2',
+                # '5_prime_hairpin_end-2',
+                # '5_prime_hairpin_stem-2',
+                # '5_prime_hairpin_loop-2',
+                # '5_prime_hairpin_energy-2',
+
+
+                # '5_prime_hairpin_start-3',
+                # '5_prime_hairpin_end-3',
+                # '5_prime_hairpin_stem-3',
+                # '5_prime_hairpin_loop-3',
+                # '5_prime_hairpin_energy-3',
+
+                # '5_prime_hairpin_start-4',
+                # '5_prime_hairpin_end-4',
+                # '5_prime_hairpin_stem-4',
+                # '5_prime_hairpin_loop-4',
+                # '5_prime_hairpin_energy-4',
+
+                # '5_prime_hairpin_start-5',
+                # '5_prime_hairpin_end-5',
+                # '5_prime_hairpin_stem-5',
+                # '5_prime_hairpin_loop-5',
+                # '5_prime_hairpin_energy-5',
+
+
+                # '5_prime_near_hairpin_start-1',
+                # '5_prime_near_hairpin_end-1',
+                # '5_prime_near_hairpin_stem-1',
+                # '5_prime_near_hairpin_loop-1',
+                # '5_prime_near_hairpin_energy-1',
+                # '5_prime_near_hairpin_mismatch_count-1',
+
+                # '5_prime_near_hairpin_start-2',
+                # '5_prime_near_hairpin_end-2',
+                # '5_prime_near_hairpin_stem-2',
+                # '5_prime_near_hairpin_loop-2',
+                # '5_prime_near_hairpin_energy-2',
+                # '5_prime_near_hairpin_mismatch_count-2',
+
+                # '5_prime_near_hairpin_start-3',
+                # '5_prime_near_hairpin_end-3',
+                # '5_prime_near_hairpin_stem-3',
+                # '5_prime_near_hairpin_loop-3',
+                # '5_prime_near_hairpin_energy-3',
+                # '5_prime_near_hairpin_mismatch_count-3',
+
+                # '5_prime_near_hairpin_start-4',
+                # '5_prime_near_hairpin_end-4',
+                # '5_prime_near_hairpin_stem-4',
+                # '5_prime_near_hairpin_loop-4',
+                # '5_prime_near_hairpin_energy-4',
+                # '5_prime_near_hairpin_mismatch_count-4',
+
+                # '5_prime_near_hairpin_start-5',
+                # '5_primenear_hairpin_end-5',
+                # '5_prime_near_hairpin_stem-5',
+                # '5_prime_near_hairpin_loop-5',
+                # '5_prime_near_hairpin_energy-5',
+                # '5_prime_near_hairpin_mismatch_count-5',
+
+
+                # '3_prime_hairpin_start-1',
+                # '3_prime_hairpin_end-1',
+                # '3_prime_hairpin_stem-1',
+                # '3_prime_hairpin_loop-1',
+                # '3_prime_hairpin_energy-1',
+
+                # '3_prime_hairpin_start-2',
+                # '3_prime_hairpin_end-2',
+                # '3_prime_hairpin_stem-2',
+                # '3_prime_hairpin_loop-2',
+                # '3_prime_hairpin_energy-2',
+
+
+                # '3_prime_hairpin_start-3',
+                # '3_prime_hairpin_end-3',
+                # '3_prime_hairpin_stem-3',
+                # '3_prime_hairpin_loop-3',
+                # '3_prime_hairpin_energy-3',
+
+                # '3_prime_hairpin_start-4',
+                # '3_prime_hairpin_end-4',
+                # '3_prime_hairpin_stem-4',
+                # '3_prime_hairpin_loop-4',
+                # '3_prime_hairpin_energy-4',
+
+                # '3_prime_hairpin_start-5',
+                # '3_prime_hairpin_end-5',
+                # '3_prime_hairpin_stem-5',
+                # '3_prime_hairpin_loop-5',
+                # '3_prime_hairpin_energy-5',
+
+
+                # '3_prime_near_hairpin_start-1',
+                # '3_prime_near_hairpin_end-1',
+                # '3_prime_near_hairpin_stem-1',
+                # '3_prime_near_hairpin_loop-1',
+                # '3_prime_near_hairpin_energy-1',
+                # '3_prime_near_hairpin_mismatch_count-1',
+
+                # '3_prime_near_hairpin_start-2',
+                # '3_prime_near_hairpin_end-2',
+                # '3_prime_near_hairpin_stem-2',
+                # '3_prime_near_hairpin_loop-2',
+                # '3_prime_near_hairpin_energy-2',
+                # '3_prime_near_hairpin_mismatch_count-2',
+
+                # '3_prime_near_hairpin_start-3',
+                # '3_prime_near_hairpin_end-3',
+                # '3_prime_near_hairpin_stem-3',
+                # '3_prime_near_hairpin_loop-3',
+                # '3_prime_near_hairpin_energy-3',
+                # '3_prime_near_hairpin_mismatch_count-3',
+
+                # '3_prime_near_hairpin_start-4',
+                # '3_prime_near_hairpin_end-4',
+                # '3_prime_near_hairpin_stem-4',
+                # '3_prime_near_hairpin_loop-4',
+                # '3_prime_near_hairpin_energy-4',
+                # '3_prime_near_hairpin_mismatch_count-4',
+
+                # '3_prime_near_hairpin_start-5',
+                # '3_primenear_hairpin_end-5',
+                # '3_prime_near_hairpin_stem-5',
+                # '3_prime_near_hairpin_loop-5',
+                # '3_prime_near_hairpin_energy-5',
+                # '3_prime_near_hairpin_mismatch_count-5',
+
+
+
+
 
                 # 'IHFL_hairpin_start-Optimal',
                 # 'IHFL_hairpin_end-Optimal',
@@ -401,244 +587,157 @@ def main():
                 # 'PDFR_near_hairpin_mismatch_count-Sub_Optimal',
 
 
-                'Overall_hairpin_start-1',
-                'Overall_hairpin_end-1',
-                'Overall_hairpin_stem-1',
-                'Overall_hairpin_loop-1',
-                'Overall_hairpin_energy-1',
+                # 'Overall_hairpin_start-1',
+                # 'Overall_hairpin_end-1',
+                # 'Overall_hairpin_stem-1',
+                # 'Overall_hairpin_loop-1',
+                # 'Overall_hairpin_energy-1',
 
-                'Overall_hairpin_start-2',
-                'Overall_hairpin_end-2',
-                'Overall_hairpin_stem-2',
-                'Overall_hairpin_loop-2',
-                'Overall_hairpin_energy-2',
-
-
-                'Overall_hairpin_start-3',
-                'Overall_hairpin_end-3',
-                'Overall_hairpin_stem-3',
-                'Overall_hairpin_loop-3',
-                'Overall_hairpin_energy-3',
-
-                'Overall_hairpin_start-4',
-                'Overall_hairpin_end-4',
-                'Overall_hairpin_stem-4',
-                'Overall_hairpin_loop-4',
-                'Overall_hairpin_energy-4',
-
-                'Overall_hairpin_start-5',
-                'Overall_hairpin_end-5',
-                'Overall_hairpin_stem-5',
-                'Overall_hairpin_loop-5',
-                'Overall_hairpin_energy-5',
+                # 'Overall_hairpin_start-2',
+                # 'Overall_hairpin_end-2',
+                # 'Overall_hairpin_stem-2',
+                # 'Overall_hairpin_loop-2',
+                # 'Overall_hairpin_energy-2',
 
 
-                'Overall_near_hairpin_start-1',
-                'Overall_near_hairpin_end-1',
-                'Overall_near_hairpin_stem-1',
-                'Overall_near_hairpin_loop-1',
-                'Overall_near_hairpin_energy-1',
-                'Overall_near_hairpin_mismatch_count-1',
+                # 'Overall_hairpin_start-3',
+                # 'Overall_hairpin_end-3',
+                # 'Overall_hairpin_stem-3',
+                # 'Overall_hairpin_loop-3',
+                # 'Overall_hairpin_energy-3',
 
-                'Overall_near_hairpin_start-2',
-                'Overall_near_hairpin_end-2',
-                'Overall_near_hairpin_stem-2',
-                'Overall_near_hairpin_loop-2',
-                'Overall_near_hairpin_energy-2',
-                'Overall_near_hairpin_mismatch_count-2',
+                # 'Overall_hairpin_start-4',
+                # 'Overall_hairpin_end-4',
+                # 'Overall_hairpin_stem-4',
+                # 'Overall_hairpin_loop-4',
+                # 'Overall_hairpin_energy-4',
 
-                'Overall_near_hairpin_start-3',
-                'Overall_near_hairpin_end-3',
-                'Overall_near_hairpin_stem-3',
-                'Overall_near_hairpin_loop-3',
-                'Overall_near_hairpin_energy-3',
-                'Overall_near_hairpin_mismatch_count-3',
-
-                'Overall_near_hairpin_start-4',
-                'Overall_near_hairpin_end-4',
-                'Overall_near_hairpin_stem-4',
-                'Overall_near_hairpin_loop-4',
-                'Overall_near_hairpin_energy-4',
-                'Overall_near_hairpin_mismatch_count-4',
-
-                'Overall_near_hairpin_start-5',
-                'Overall_near_hairpin_end-5',
-                'Overall_near_hairpin_stem-5',
-                'Overall_near_hairpin_loop-5',
-                'Overall_near_hairpin_energy-5',
-                'Overall_near_hairpin_mismatch_count-5',
+                # 'Overall_hairpin_start-5',
+                # 'Overall_hairpin_end-5',
+                # 'Overall_hairpin_stem-5',
+                # 'Overall_hairpin_loop-5',
+                # 'Overall_hairpin_energy-5',
 
 
+                # 'Overall_near_hairpin_start-1',
+                # 'Overall_near_hairpin_end-1',
+                # 'Overall_near_hairpin_stem-1',
+                # 'Overall_near_hairpin_loop-1',
+                # 'Overall_near_hairpin_energy-1',
+                # 'Overall_near_hairpin_mismatch_count-1',
 
-                'Overall_repeat_start-1',
-                'Overall_repeat_end-1',
-                'Overall_repeat_length-1',
-                'Overall_repeat_energy-1',
+                # 'Overall_near_hairpin_start-2',
+                # 'Overall_near_hairpin_end-2',
+                # 'Overall_near_hairpin_stem-2',
+                # 'Overall_near_hairpin_loop-2',
+                # 'Overall_near_hairpin_energy-2',
+                # 'Overall_near_hairpin_mismatch_count-2',
 
-                'Overall_repeat_start-2',
-                'Overall_repeat_end-2',
-                'Overall_repeat_length-2',
-                'Overall_repeat_energy-2',
+                # 'Overall_near_hairpin_start-3',
+                # 'Overall_near_hairpin_end-3',
+                # 'Overall_near_hairpin_stem-3',
+                # 'Overall_near_hairpin_loop-3',
+                # 'Overall_near_hairpin_energy-3',
+                # 'Overall_near_hairpin_mismatch_count-3',
 
-                'Overall_repeat_start-3',
-                'Overall_repeat_end-3',
-                'Overall_repeat_length-3',
-                'Overall_repeat_energy-3',
+                # 'Overall_near_hairpin_start-4',
+                # 'Overall_near_hairpin_end-4',
+                # 'Overall_near_hairpin_stem-4',
+                # 'Overall_near_hairpin_loop-4',
+                # 'Overall_near_hairpin_energy-4',
+                # 'Overall_near_hairpin_mismatch_count-4',
 
-                'Overall_repeat_start-4',
-                'Overall_repeat_end-4',
-                'Overall_repeat_length-4',
-                'Overall_repeat_energy-4',
-
-                'Overall_repeat_start-5',
-                'Overall_repeat_end-5',
-                'Overall_repeat_length-5',
-                'Overall_repeat_energy-5',
-
-                'Overall_near_repeat_start-1',
-                'Overall_near_repeat_end-1',
-                'Overall_near_repeat_length-1',
-                'Overall_near_repeat_energy-1',
-                'Overall_near_repeat_mismatch_count-1',
-
-                'Overall_near_repeat_start-2',
-                'Overall_near_repeat_end-2',
-                'Overall_near_repeat_length-2',
-                'Overall_near_repeat_energy-2',
-                'Overall_near_repeat_mismatch_count-2',
-
-                'Overall_near_repeat_start-3',
-                'Overall_near_repeat_end-3',
-                'Overall_near_repeat_length-3',
-                'Overall_near_repeat_energy-3',
-                'Overall_near_repeat_mismatch_count-3',
-
-                'Overall_near_repeat_start-4',
-                'Overall_near_repeat_end-4',
-                'Overall_near_repeat_length-4',
-                'Overall_near_repeat_energy-4',
-                'Overall_near_repeat_mismatch_count-4',
-
-                'Overall_near_repeat_start-5',
-                'Overall_near_repeat_end-5',
-                'Overall_near_repeat_length-5',
-                'Overall_near_repeat_energy-5',
-                'Overall_near_repeat_mismatch_count-5',
-
-                'Overall_reverse_repeat_start-1',
-                'Overall_reverse_repeat_end-1',
-                'Overall_reverse_repeat_length-1',
-                'Overall_reverse_repeat_energy-1',
-
-                'Overall_reverse_repeat_start-2',
-                'Overall_reverse_repeat_end-2',
-                'Overall_reverse_repeat_length-2',
-                'Overall_reverse_repeat_energy-2',
-
-                'Overall_reverse_repeat_start-3',
-                'Overall_reverse_repeat_end-3',
-                'Overall_reverse_repeat_length-3',
-                'Overall_reverse_repeat_energy-3',
-
-                'Overall_reverse_repeat_start-4',
-                'Overall_reverse_repeat_end-4',
-                'Overall_reverse_repeat_length-4',
-                'Overall_reverse_repeat_energy-4',
-
-                'Overall_reverse_repeat_start-5',
-                'Overall_reverse_repeat_end-5',
-                'Overall_reverse_repeat_length-5',
-                'Overall_reverse_repeat_energy-5',
+                # 'Overall_near_hairpin_start-5',
+                # 'Overall_near_hairpin_end-5',
+                # 'Overall_near_hairpin_stem-5',
+                # 'Overall_near_hairpin_loop-5',
+                # 'Overall_near_hairpin_energy-5',
+                # 'Overall_near_hairpin_mismatch_count-5',
 
 
 
+                # 'Overall_repeat_start-1',
+                # 'Overall_repeat_end-1',
+                # 'Overall_repeat_length-1',
+                # 'Overall_repeat_energy-1',
 
-                # 'Deletion Group Start',
-                # 'Deletion Group End',
-                # 'Log2 Deletion Group Frequency',
-                # 'Log2 Not in Spanning Del Group Frequency',
-                # 'Furthest Right',
-                # 'Furthest Left',
-                # 'Group Repeats',
-                # 'Group Near Repeats',
-                # 'Group Hairpins',
-                # 'Group Near Hairpins',
-                
-                # 'Group Start - Well Avg',
-                # 'Group End - Well Avg',
-                # 'Group Repeats - Well Avg',
-                # 'Group Near Repeats - Well Avg',
-                # 'Group Hairpins - Well Avg',
-                # 'Group Near Hairpins - Well Avg',
+                # 'Overall_repeat_start-2',
+                # 'Overall_repeat_end-2',
+                # 'Overall_repeat_length-2',
+                # 'Overall_repeat_energy-2',
 
-                # REMOVED FRAGMENT CONCENTRATION TEMPORARILY
-                # 'Total Fragment Count',
-                # 'Log 2 Fragment Concentrations',
-            ]
-            tmprow.extend(['DP Left Sequence', 'DP Left Energy'])
-            for _ in range(5):
-                tmprow.extend([
-                    f'Match{_} Len - Left',
-                    f'Match{_} Energy - Left',
-                    f'Match{_} Sequence - Left',
-                    f'Gap{_} D1 - Left',
-                    f'Gap{_} D2 - Left',
-                ])
-            tmprow.extend(['DP Right Sequence', 'DP Right Energy'])
-            for _ in range(5):
-                tmprow.extend([
-                    f'Match{_} Len - Right',
-                    f'Match{_} Energy - Right',
-                    f'Match{_} Sequence - Right',
-                    f'Gap{_} D1 - Right',
-                    f'Gap{_} D2 - Right',
-                ])
-            writer.writerow(tmprow)
-            for line in f:
-                tmp = ast.literal_eval(line)
-                if not len(tmp[0]):
-                    print('here')
-                    continue
-                for seq,seq_dels in tmp[0].items():
-                    for coordinates,data_fields in seq_dels.items():
-                        seq_coor = str(seq) + str(coordinates)
-                        if seq_coor in completed_genes or data_fields['batch_num'] not in conf_batches:
-                            continue
-                        # try:
-                        completed_genes.add(seq_coor)
-                        if data_fields['within_one_fragment'] == 'False':
-                            continue
+                # 'Overall_repeat_start-3',
+                # 'Overall_repeat_end-3',
+                # 'Overall_repeat_length-3',
+                # 'Overall_repeat_energy-3',
 
-                        conf_idx = seq + '_' + data_fields['batch_num']
-                        if conf_idx not in geneid_2_conf:
-                            passing_dial_out = 0
-                        else:
-                            passing_dial_out = int(geneid_2_conf[conf_idx]['wells_passing'] > 0)
+                # 'Overall_repeat_start-4',
+                # 'Overall_repeat_end-4',
+                # 'Overall_repeat_length-4',
+                # 'Overall_repeat_energy-4',
+
+                # 'Overall_repeat_start-5',
+                # 'Overall_repeat_end-5',
+                # 'Overall_repeat_length-5',
+                # 'Overall_repeat_energy-5',
+
+                # 'Overall_near_repeat_start-1',
+                # 'Overall_near_repeat_end-1',
+                # 'Overall_near_repeat_length-1',
+                # 'Overall_near_repeat_energy-1',
+                # 'Overall_near_repeat_mismatch_count-1',
+
+                # 'Overall_near_repeat_start-2',
+                # 'Overall_near_repeat_end-2',
+                # 'Overall_near_repeat_length-2',
+                # 'Overall_near_repeat_energy-2',
+                # 'Overall_near_repeat_mismatch_count-2',
+
+                # 'Overall_near_repeat_start-3',
+                # 'Overall_near_repeat_end-3',
+                # 'Overall_near_repeat_length-3',
+                # 'Overall_near_repeat_energy-3',
+                # 'Overall_near_repeat_mismatch_count-3',
+
+                # 'Overall_near_repeat_start-4',
+                # 'Overall_near_repeat_end-4',
+                # 'Overall_near_repeat_length-4',
+                # 'Overall_near_repeat_energy-4',
+                # 'Overall_near_repeat_mismatch_count-4',
+
+                # 'Overall_near_repeat_start-5',
+                # 'Overall_near_repeat_end-5',
+                # 'Overall_near_repeat_length-5',
+                # 'Overall_near_repeat_energy-5',
+                # 'Overall_near_repeat_mismatch_count-5',
+
+                # 'Overall_reverse_repeat_start-1',
+                # 'Overall_reverse_repeat_end-1',
+                # 'Overall_reverse_repeat_length-1',
+                # 'Overall_reverse_repeat_energy-1',
+
+                # 'Overall_reverse_repeat_start-2',
+                # 'Overall_reverse_repeat_end-2',
+                # 'Overall_reverse_repeat_length-2',
+                # 'Overall_reverse_repeat_energy-2',
+
+                # 'Overall_reverse_repeat_start-3',
+                # 'Overall_reverse_repeat_end-3',
+                # 'Overall_reverse_repeat_length-3',
+                # 'Overall_reverse_repeat_energy-3',
+
+                # 'Overall_reverse_repeat_start-4',
+                # 'Overall_reverse_repeat_end-4',
+                # 'Overall_reverse_repeat_length-4',
+                # 'Overall_reverse_repeat_energy-4',
+
+                # 'Overall_reverse_repeat_start-5',
+                # 'Overall_reverse_repeat_end-5',
+                # 'Overall_reverse_repeat_length-5',
+                # 'Overall_reverse_repeat_energy-5',
 
 
-                        tmprow = [seq,
-                                  coordinates,
-                                  passing_dial_out,
-                                  ]
-                        for k,v in data_fields.items():
-                            if k == 'within_one_fragment':
-                                tmprow.append(1 if v else 0)
-                            elif k == 'perfect_sequence_across_deletion':
-                                tmprow.append(1 if v else 0)
-                            elif k == 'Log2_fragment_concentrations':
-                                frag_conc = ast.literal_eval(str(v))
-                                tmprow.append(len(frag_conc))
-                                for conc in frag_conc:
-                                    tmprow.append(conc)
-                            elif k == 'Log2_group_deletion_frequency':
-                                # tmprow.append(max(v, -15))
-                                continue
-                            elif k == 'del_in_x_wells':
-                                continue
-                            else:
-                                tmprow.append(v)
-                        writer.writerow(tmprow)
-    print(error_lines)
+# Scratchwork for manually assigning columns into csv:
                         # tmprow = [
                         #     seq, 
                         #     coordinates,
@@ -946,11 +1045,3 @@ def main():
                         #     data_fields['Overall_near_repeats_mismatch_count_4'],
                         #     data_fields['Log2_fragment_concentrations'],
                         # ]
-
-
-
-
-
-
-if __name__ == '__main__':
-    main()

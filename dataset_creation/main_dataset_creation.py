@@ -108,12 +108,12 @@ def main():
 
             # for whenever you pick up, just look at aws to see how many files you've
             # already done and add name you want to pick up at:
-            # if not Passed_last_run_sequence:
-            #     if gene_id == '853_10_B20240303':
-            #         Passed_last_run_sequence = True
-            #     else:
-            #         print(gene_id)
-            #         continue
+            if not Passed_last_run_sequence:
+                if gene_id == '2013_99_B263-1':
+                    Passed_last_run_sequence = True
+                else:
+                    print(gene_id)
+                    continue
 
             # getting old sam
             for sam_name in v:

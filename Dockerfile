@@ -15,20 +15,23 @@ RUN pip install boto3
 RUN pip install Bio
 RUN pip install matplotlib
 
+# RUN sudo apt-get update && sudo apt-get install -y sudo
 # RUN apt-get install minimap2
 # RUN apt-get install samtools
+# RUN sudo apt-get install minimap2
+# RUN sudo apt-get install samtools
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 COPY poetry.lock pyproject.toml ${LAMBDA_TASK_ROOT}
 
 COPY speedy/artifacts/speedy-0.1.0-cp312-none-any.whl /tmp
+# COPY speedy/ /tmp/consolidated_topdeletions/speedy/
 
 RUN poetry config virtualenvs.create false \
   && poetry install $(test "$DEPLOY_TYPE" == prod && echo "--only main") --no-interaction --no-root --no-ansi \
   && poetry run pip install /tmp/speedy-0.1.0-cp312-none-any.whl
 
-COPY main.py ${LAMBDA_TASK_ROOT}
-# COPY cleaner_main.py ${LAMBDA_TASK_ROOT}
+# COPY main.py ${LAMBDA_TASK_ROOT}
 COPY sequence_manipulation.py ${LAMBDA_TASK_ROOT}
 COPY data_retrieval.py ${LAMBDA_TASK_ROOT}
 COPY dataset_creation ${LAMBDA_TASK_ROOT}/dataset_creation

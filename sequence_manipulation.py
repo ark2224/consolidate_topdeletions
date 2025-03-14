@@ -18,11 +18,13 @@ def longest_common_substring(s1, s2):
     end = 0
     dist5 = 0
     dist3 = 0
+
     for i in range(1, m + 1):
         for j in range(1, n + 1):
             # ensuring it's off the exact alignment
             if i == j:
                 continue
+
             if s1[i - 1] == s2[j - 1]:
                 dp[i][j] = dp[i - 1][j - 1] + 1
                 if dp[i][j] > max_length:
@@ -32,11 +34,12 @@ def longest_common_substring(s1, s2):
                     dist3 = j - max_length
             else:
                 dp[i][j] = 0
+
     # Extract the longest common substring
     return s1[end - max_length + 1: end + 1], dist5, dist3
 
 
-def ATGC_energy(s1, mismatch_penalty=0.5) -> int:
+def ATGC_energy(s1, mismatch_penalty=1.5) -> int:
     score = 0
     for c in s1:
         if c == 'A' or c == 'T':
@@ -54,6 +57,7 @@ def lcs(S, T):
     counter = [[0] * (n + 1) for _ in range(m + 1)]
     longest = 0
     lcs_set = set()
+    
     for i in range(m):
         for j in range(n):
             if S[i] == T[j]:
@@ -69,6 +73,7 @@ def lcs(S, T):
                 counter[i+1][j+1] = 0
     return lcs_set
 
+
 def top_5_longest_common_substrings(S, T):
     lcs_set = lcs(S, T)
     tmp_list = []
@@ -78,7 +83,87 @@ def top_5_longest_common_substrings(S, T):
     return lcs_list[:5]
 
 
-def ATGC_secondary_structures(s1: str, s2: str, loop_len = 0, mismatch_penalty= 0.5) -> float:
+def reverseRepeatSubStrs(s):
+    revcomp = {
+        'A': 'T',
+        'T': 'A',
+        'C': 'G',
+        'G': 'C'
+    }
+    n = len(s)
+    dp = [[False] * n for _ in range(n)]
+    distinct_palindromes = set()
+    for gap in range(n):
+        for i in range(n - gap):
+            j = i + gap
+            if gap == 0:
+                dp[i][j] = True
+            elif gap == 1:
+                dp[i][j] = revcomp[s[i]] == s[j]
+            else:
+                dp[i][j] = revcomp[s[i]] == s[j] and dp[i + 1][j - 1]
+
+            if dp[i][j]:
+                distinct_palindromes.add(s[i:j + 1])
+    return distinct_palindromes
+
+
+def find_mirrors(#palindromes
+        seq: str,
+        start_offset: int,
+        end_offset: int,
+        start_orientation: int = 1,
+        end_orientation: int = 1,
+        output_limit: int = None,
+    ):
+
+    blank_palindrome = [{
+        'start': '',
+        'end': '',
+        'length': '',
+        'energy': '',
+        'sequence': '',
+    }]
+
+    n = len(seq)
+    dp = [[False] * n for _ in range(n)]
+    distinct_palindromes = set()
+    for gap in range(n):
+        for i in range(n - gap):
+            j = i + gap
+            if gap == 0:
+                dp[i][j] = True
+            elif gap == 1:
+                dp[i][j] = seq[i] == seq[j]
+            else:
+                dp[i][j] = seq[i] == seq[j] and dp[i + 1][j - 1]
+
+            if dp[i][j]:
+                distinct_palindromes.add(seq[i:j + 1])
+    
+    if len(distinct_palindromes) == 0:
+        return blank_palindrome
+
+    returnable_palindromes = []
+    for p in distinct_palindromes:
+        if len(p) > 2:
+            s = (seq.find(p) - start_offset) * start_orientation
+            returnable_palindromes.append({
+                'start': s,
+                'end': (s + len(p) - end_offset) * end_orientation,
+                'length': len(p),
+                'energy': ATGC_energy(p),
+                'sequence': p,
+            })
+
+    returnable_palindromes = sorted(returnable_palindromes,
+                                    key=lambda x: x['energy'],
+                                    reverse=True)
+
+    return returnable_palindromes[:output_limit]
+
+
+def ATGC_secondary_structures(s1: str, s2: str, loop_len = 0, mismatch_penalty= 1.5) -> float:
     i1,i2 = 0,0
     score = 0
     while i1 < len(s1) and i2 < len(s2):
@@ -91,8 +176,8 @@ def ATGC_secondary_structures(s1: str, s2: str, loop_len = 0, mismatch_penalty= 
             score -= mismatch_penalty
         i1 += 1
         i2 += 1
-    if loop_len > 3:
-        score -= mismatch_penalty*(loop_len-3)
+    # if loop_len > 3:
+    #     score -= 0.5*(loop_len-3)
     return score
 
 
@@ -189,7 +274,7 @@ def find_near_hairpins(sequence):
     return sorted(near_hairpin_list, key=lambda x: x['ATGC_score'], reverse=True)
 
 
-def fix_energy_score(matching_over_deletion: str, mismatch_penalty=0.5):
+def fix_energy_score(matching_over_deletion: str, mismatch_penalty=1.5):
     right_energy, right_offset, current_score = 0, 0, 0
     not_found_matching = True
     for c in matching_over_deletion[21:]:
@@ -204,6 +289,7 @@ def fix_energy_score(matching_over_deletion: str, mismatch_penalty=0.5):
             if not_found_matching:
                 right_offset += 1
         right_energy = max(right_energy, current_score)
+
     left_offset, left_energy, current_score = 0, 0, 0
     not_found_matching = True
     if right_offset == 0:
@@ -231,81 +317,162 @@ def fix_energy_score(matching_over_deletion: str, mismatch_penalty=0.5):
     return right_energy, right_offset, left_energy, left_offset
 
 
-# def find_secondary_structures(del_segment: str, frag_seq: str) -> dict:
-#     try:
-#         repeats = find_repeats(del_segment)
-#         hairpins = find_hairpins(del_segment)
-#         near_repeats = find_near_repeats(del_segment)
-#         near_hairpins = find_near_hairpins(del_segment)
-#     except:
-#         print(del_segment)
-#         repeats, hairpins, near_repeats, near_hairpins = [], [], [], []
+def find_only_hairpins(
+        del_segment: str,
+        start_offset: int,
+        end_offset: int,
+        start_orientation = 1,
+        end_orientation = 1,
+        output_limit: int = None,
+        min_energy: int = None,
+    ) -> dict:
 
-#     # repeats, hairpins, near_repeats, near_hairpins = [], [], [], []
-#     # ToDo: calculate energies and re-order them
-#     return {
-#         'repeats': repeats,
-#         'hairpins': hairpins,
-#         'near_repeats': near_repeats,
-#         'near_hairpins': near_hairpins
-#     }
-
-
-def find_only_hairpins(del_segment: str) -> dict:
-    # hairpins = find_hairpins(del_segment)
-    # near_hairpins = find_near_hairpins(del_segment)
-    try:
-        hairpins = find_hairpins(del_segment)
-        near_hairpins = find_near_hairpins(del_segment)
-    except:
-        # print(del_segment, len(del_segment))
-        # print("HAIRPIN ERROR. Segment Length: ", len(del_segment))
-        return {}
-    return {
-        'hairpins': hairpins,
-        'near_hairpins': near_hairpins
+    blank_hairpin = [{
+        'start': '',
+        'end': '',
+        'stem': '',
+        'loop': '',
+        'energy': '',
+        'sequence': '',
+    }]
+    blank_near_hairpin = [{
+        'start': '',
+        'end': '',
+        'stem': '',
+        'loop': '',
+        'energy': '',
+        'sequence': '',
+        'mismatch_count': '',
+    }]
+    defaultReturn = {
+        'hairpins': blank_hairpin,
+        'near_hairpins': blank_near_hairpin
     }
 
-
-def find_only_repeats(del_segment: str) -> list:
-    # repeats = find_repeats(del_segment)
     try:
-        repeats = find_repeats(del_segment)
+        # returned in order of decreasing energy
+        defaultReturn['hairpins'] = find_hairpins(del_segment)
+        defaultReturn['near_hairpins'] = find_near_hairpins(del_segment)
     except:
-        # print(del_segment, len(del_segment))
-        return []
-    return repeats
+        return defaultReturn
 
-def find_only_near_repeats(del_segment: str) -> list:
-    # repeats = find_near_repeats(del_segment)
+    for_keeps = {}
+    for k,v in defaultReturn.items():
+        lim = output_limit if output_limit != None else len(v)
+
+        for_keeps[k] = []
+        for i,strukt in enumerate(v):
+            if not min_energy:
+                for_keeps[k].append({
+                    'start': (strukt['positions'][0] - start_offset)*start_orientation,
+                    'end': (strukt['positions'][1]+strukt['length'] - end_offset)*end_orientation,
+                    'stem': strukt['length'],
+                    'loop': strukt['loop_length'],
+                    'energy': strukt['ATGC_score'],
+                    'sequence': strukt['sequence']
+                })
+                if 'mismatch_count' in strukt:
+                    for_keeps[k][i]['mismatch_count'] = strukt['mismatch_count']
+                lim -= 1
+                if lim == 0: 
+                    break
+            elif (strukt['ATGC_score'] > min_energy
+                # and (strukt['loop_length'] >= 4
+                #      or strukt['loop_length'] == 0)
+                ):
+                for_keeps[k].append({
+                    'start': (strukt['positions'][0] - start_offset)*start_orientation,
+                    'end': (strukt['positions'][1]+strukt['length'] - end_offset)*end_orientation,
+                    'stem': strukt['length'],
+                    'loop': strukt['loop_length'],
+                    'energy': strukt['ATGC_score'],
+                    'sequence': strukt['sequence']
+                })
+                if 'mismatch_count' in strukt:
+                    for_keeps[k][i]['mismatch_count'] = strukt['mismatch_count']
+                lim -= 1
+                if lim == 0: 
+                    break
+    return for_keeps
+
+
+def find_only_repeats(
+        del_segment: str,
+        start_offset: int,
+        end_offset: int,
+        start_orientation = 1,
+        end_orientation = 1,
+        output_limit: int = None,
+        min_energy: int = None,
+    ):
+    blank_repeat = [{
+        'start': '',
+        'end': '',
+        'length': '',
+        'energy': '',
+        'sequence': '',
+    }]
+    blank_near_repeat = [{
+        'start': '',
+        'end': '',
+        'length': '',
+        'energy': '',
+        'sequence': '',
+        'mismatch_count': '',
+    }]
+    defaultReturn = {
+        'repeats': blank_repeat,
+        'near_repeats': blank_near_repeat
+    }
+
     try:
-        repeats = find_near_repeats(del_segment)
+        defaultReturn['repeats'] = find_repeats(del_segment)
+        defaultReturn['near_repeats'] = find_near_repeats(del_segment)
     except:
-        # print(del_segment, len(del_segment))
-        return []
-    return repeats
+        return defaultReturn
+    
+    for_keeps = {}
+    for k,v in defaultReturn.items():
+        lim = output_limit if output_limit != None else len(v)
 
-
-def change_hairpin_notation(hr: dict, origin=0, invert=1):
-    summary = []
-    for i, h in enumerate(hr):
-        summary.append({
-            'start': (h['positions'][0] - origin)*invert,
-            'end': (h['positions'][1]+h['length'] - origin)*invert,
-            'stem': h['length'],
-            'loop': h['loop_length'],
-            'energy': h['ATGC_score']
-        })
-        if 'mismatch_count' in h:
-            summary[i]['mismatch_count'] = h['mismatch_count']
-    return summary
+        for_keeps[k] = []
+        for i,strukt in enumerate(v):
+            if not min_energy:
+                for_keeps[k].append({
+                    'start': (strukt['positions'][0] - start_offset)*start_orientation,
+                    'end': (strukt['positions'][1]+strukt['length'] - end_offset)*end_orientation,
+                    'length': strukt['length'],
+                    'energy': strukt['ATGC_score'],
+                    'sequence': strukt['sequence']
+                })
+                if 'mismatch_count' in strukt:
+                    for_keeps[k][i]['mismatch_count'] = strukt['mismatch_count']
+                lim -= 1
+                if lim == 0: 
+                    break
+            elif strukt['ATGC_score'] > min_energy:
+                for_keeps[k].append({
+                    'start': (strukt['positions'][0] - start_offset)*start_orientation,
+                    'end': (strukt['positions'][1]+strukt['length'] - end_offset)*end_orientation,
+                    'length': strukt['length'],
+                    'energy': strukt['ATGC_score'],
+                    'sequence': strukt['sequence']
+                })
+                if 'mismatch_count' in strukt:
+                    for_keeps[k][i]['mismatch_count'] = strukt['mismatch_count']
+                lim -= 1
+                if lim == 0: 
+                    break
+    return for_keeps
 
 
 def longest_substring(s1, s2) -> str:
     # Create a SequenceMatcher object with the two strings
     seq_match = SequenceMatcher(None, s1, s2)
+
     # Find the longest matching substring
     match = seq_match.find_longest_match(0, len(s1), 0, len(s2))
+
     # If a match is found, return the substring
     if match.size != 0:
         return s1[match.a: match.a + match.size]
@@ -313,6 +480,75 @@ def longest_substring(s1, s2) -> str:
         return ''
 
 
+def find_complements(
+        seq: str,
+        start_offset: int,
+        end_offset: int,
+        start_orientation = 1,
+        end_orientation = 1,
+        output_limit: int = None,
+        min_energy: int = None
+    ):
+
+    blank_complement = [{
+        'start': '',
+        'end': '',
+        'length': '',
+        'energy': '',
+        'sequence': '',
+    }]
+
+    revs = {
+        'A':'T',
+        'T':'A',
+        'G':'C',
+        'C':'G'
+    }
+
+    complements = set()
+    indices = {}
+    for i in range(len(seq)):
+        for j in range(i+1, len(seq)):
+            offset = 0
+            curr_max = ''
+            while i + offset < j < len(seq)-offset and revs[seq[i+offset]] == seq[j+offset]:
+                offset += 1
+                if offset > len(curr_max) and offset > 1:
+                    curr_max = seq[i:i+offset]
+                    indices[curr_max] = [i, j]
+            if curr_max:
+                complements.add(curr_max)
+    
+    if len(complements) == 0:
+        return blank_complement
+    
+    returnable_complements = []
+    for c in complements:
+        energy = ATGC_energy(c)
+        indices[c].append(energy)
+        if not min_energy:
+            returnable_complements.append({
+                'start': (indices[c][0] - start_offset)*start_orientation,
+                'end': (indices[c][1] - end_offset)*end_orientation,
+                'length': len(c),
+                'sequence': c,
+                'energy': indices[c][2],
+                'sequence': c,
+            })
+        elif energy >= min_energy:
+            returnable_complements.append({
+                'start': (indices[c][0] - start_offset)*start_orientation,
+                'end': (indices[c][1] - end_offset)*end_orientation,
+                'length': len(c),
+                'sequence': c,
+                'energy': indices[c][2],
+                'sequence': c,
+            })
+    returnable_complements = sorted(returnable_complements,
+                                   key=lambda x: x['energy'],
+                                   reverse=True)
+
+    return returnable_complements[:output_limit]
 
 
 # The rest from NewDataset_12182024_cleaner.ipynb
@@ -930,16 +1166,18 @@ def process_deletions(
         earliest_end = len(seq)
         past_deletion_coords = []
         # Process top 10 exact deletions for a deletion group
+        max_freq = 0
         for strt_end_idx, info in top_deletions.items():
             # only recording deletion coordinates that correspond to at least 7 reads; used to do 4 but was too much information
             ct = info[0]
+            max_freq = max(max_freq, float(ct / total_reads))
             # if ct < 7:
             #     continue
-            if float(ct / total_reads) < 0.002:
+            if float(ct / total_reads) < 0.002 or float(ct / total_reads) < float(max_freq / 4.):
                 print('CUT!!!')
                 break
-            if inner_idx > 1:#10:#going with the top deletion per group rn
-                break
+            # if inner_idx >= 1:#10:#going with the top deletion per group rn
+            #     break
             current_top_deletions[f'{gene_id}_{well_ct}'][strt_end_idx], past_deletion_coords = analyze_exact_deletion(
                 seq,
                 strt_end_idx,
@@ -953,6 +1191,7 @@ def process_deletions(
             current_top_deletions[f'{gene_id}_{well_ct}'][strt_end_idx]['group_percent'] = float(group_sum / total_reads)
 
             inner_idx += 1
+            # break#need to only count top deletion in deletion group
 
         # # Taking the below out because no longer interested in latest-start earliest-end for a deletion group
         # for strt_end_idx, info in top_deletions.items():
